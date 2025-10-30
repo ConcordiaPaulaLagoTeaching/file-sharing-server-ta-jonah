@@ -15,7 +15,7 @@ public class Main {
         System.out.println("Hello and welcome!");
         Scanner scanner = new Scanner(System.in);
 
-        try{
+        try{ // Trial n4
             Socket clientSocket = new Socket("localhost", 12345);
             System.out.println("Connected to the server at localhost:12345");
 
