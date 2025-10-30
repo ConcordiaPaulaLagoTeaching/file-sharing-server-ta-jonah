@@ -10,7 +10,7 @@ public class FileSystemManager {
     private final int MAXFILES = 5;
     private final int MAXBLOCKS = 10;
     private final static FileSystemManager instance = null;
-    private final RandomAccessFile disk;
+    private final RandomAccessFile disk = null;
     private final ReentrantLock globalLock = new ReentrantLock();
 
     private static final int BLOCK_SIZE = 128; // Example block size
