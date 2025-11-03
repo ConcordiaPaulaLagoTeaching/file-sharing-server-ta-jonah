@@ -44,7 +44,6 @@ public class Main {
                 scanner.close();
             }
 
-
         }catch(Exception e) {
             e.printStackTrace();
         }

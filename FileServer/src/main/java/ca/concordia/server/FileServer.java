@@ -1,9 +1,7 @@
 package ca.concordia.server;
 import ca.concordia.filesystem.FileSystemManager;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -11,7 +9,7 @@ public class FileServer {
 
     private FileSystemManager fsManager;
     private int port;
-    public FileServer(int port, String fileSystemName, int totalSize){
+    public FileServer(int port, String fileSystemName, int totalSize) throws IOException {
         // Initialize the FileSystemManager
         FileSystemManager fsManager = new FileSystemManager(fileSystemName,
                 10*128 );
@@ -42,7 +40,28 @@ public class FileServer {
                                 writer.println("SUCCESS: File '" + parts[1] + "' created.");
                                 writer.flush();
                                 break;
+                            case "READ":
+                                fsManager.readFile(parts[1]);
+                                writer.println("SUCCESS: File '" + parts[1] + "' was read.");
+                                writer.flush();
+                                break;
+                            case "WRITE":
+                                fsManager.writeFile(parts[1], parts[2]);
+                                writer.println("SUCCESS: File '" + parts[1] + "' written to with : " + parts[2]);
+                                writer.flush();
+                                break;
+                            case "DELETE":
+                                fsManager.deleteFile(parts[1]);
+                                writer.println("SUCCESS: File '" + parts[1] + "' was deleted.");
+                                writer.flush();
+                                break;
+                            case "LIST":
+                                fsManager.list();
+                                writer.println("SUCCESS: files listed!");
+                                writer.flush();
+                                break;
                             //TODO: Implement other commands READ, WRITE, DELETE, LIST
+
                             case "QUIT":
                                 writer.println("SUCCESS: Disconnecting.");
                                 return;
