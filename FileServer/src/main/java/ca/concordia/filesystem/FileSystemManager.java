@@ -1,3 +1,4 @@
+
 package ca.concordia.filesystem;
 
 import ca.concordia.filesystem.datastructures.FEntry;
@@ -28,6 +29,7 @@ public class FileSystemManager {
 
     }
 
+    //this function creates an empty file if possible
     public void createFile(String fileName) throws Exception {
         // TODO
         throw new UnsupportedOperationException("Method not implemented yet.");
@@ -35,4 +37,9 @@ public class FileSystemManager {
 
 
     // TODO: Add readFile, writeFile and other required methods,
+
+    //deleteFile(String fileName) removes file and zeroes out its blocks
+    //writeFile(String filename, byte[] data) replaces contents of a file; must be atomic (no partial writes!)
+    //readFile(String filename) returns data stored inside a file
+    //listFiles() returns names of all existing files
 }

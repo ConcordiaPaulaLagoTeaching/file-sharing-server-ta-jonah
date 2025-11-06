@@ -1,3 +1,4 @@
+//Represents each block of data belonging to a file (like FAT filesystem)
 package ca.concordia.filesystem.datastructures;
 
 public class FNode {

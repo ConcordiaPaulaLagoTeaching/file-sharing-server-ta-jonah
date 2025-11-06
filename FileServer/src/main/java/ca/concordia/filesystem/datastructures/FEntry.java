@@ -1,3 +1,5 @@
+// Fentry rpresents one file (name, size, pointer to first block)
+
 package ca.concordia.filesystem.datastructures;
 
 import java.util.LinkedList;
