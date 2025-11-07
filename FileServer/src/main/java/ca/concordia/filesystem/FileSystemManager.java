@@ -1,15 +1,15 @@
 package ca.concordia.filesystem;
 
-import ca.concordia.filesystem.datastructures.FEntry;
-
 import java.io.RandomAccessFile;
 import java.util.concurrent.locks.ReentrantLock;
+
+import ca.concordia.filesystem.datastructures.FEntry;
 
 public class FileSystemManager {
 
     private final int MAXFILES = 5;
     private final int MAXBLOCKS = 10;
-    private final static FileSystemManager instance;
+    private static FileSystemManager instance = null;
     private final RandomAccessFile disk;
     private final ReentrantLock globalLock = new ReentrantLock();
 
@@ -22,6 +22,16 @@ public class FileSystemManager {
         // Initialize the file system manager with a file
         if(instance == null) {
             //TODO Initialize the file system
+
+            // We Create a Disk file which will be managed by Filesystem
+            try {
+                this.disk = new RandomAccessFile(filename, "rw");
+                inodeTable = new FEntry[MAXFILES];
+                freeBlockList = new boolean[MAXBLOCKS];
+            } catch (Exception e) {
+                throw new RuntimeException("Unable to open disk file");
+            }
+            instance = this;
         } else {
             throw new IllegalStateException("FileSystemManager is already initialized.");
         }
