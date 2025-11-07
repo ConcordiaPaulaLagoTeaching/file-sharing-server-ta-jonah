@@ -2,7 +2,7 @@ package ca.concordia.filesystem.datastructures;
 
 import java.util.LinkedList;
 
-public class FEntry {
+public class FEntry { //
 
     private String filename;
     private short filesize;
@@ -16,6 +16,14 @@ public class FEntry {
         this.filename = filename;
         this.filesize = filesize;
         this.firstBlock = firstblock;
+    }
+
+    //default constructorbloading frm disk
+    public FEntry(){
+
+        this.filename =" ";
+        this.filesize = 0;
+        this.firstBlock = -1;
     }
 
     // Getters and Setters
@@ -44,4 +52,28 @@ public class FEntry {
     public short getFirstBlock() {
         return firstBlock;
     }
+    public void setFirstBlock (short firstBlock){
+        this.firstBlock =firstBlock;
+    }
+    // Helper method to check if this FEntry is in use
+
+    public boolean isInUse() {
+        return filename != null && !filename.isEmpty();
+    }
+    
+    // Method to mark as free/unused
+    public void markFree() {
+        this.filename = "";
+        this.filesize = 0;
+        this.firstBlock = -1;
+    }
+    
+    // Calculate the size in bytes that this FEntry will occupy on disk
+    public static int getDiskSize() {
+        return 15; // 11 bytes (filename) + 2 bytes (size) + 2 bytes (firstBlock) = 15 bytes
+    }
+
+
+
+
 }

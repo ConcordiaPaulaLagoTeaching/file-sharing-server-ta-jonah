@@ -1,6 +1,6 @@
 package ca.concordia.filesystem.datastructures;
 
-public class FNode {
+public class FNode { //fnode
 
     private int blockIndex;
     private int next;
