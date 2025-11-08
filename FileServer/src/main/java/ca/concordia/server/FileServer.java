@@ -11,17 +11,16 @@ public class FileServer {
 
     private FileSystemManager fsManager;
     private int port;
+    
     public FileServer(int port, String fileSystemName, int totalSize){
-        // Initialize the FileSystemManager
-        FileSystemManager fsManager = new FileSystemManager(fileSystemName,
-                10*128 );
-        this.fsManager = fsManager;
         this.port = port;
+        FileSystemManager fsManager = new FileSystemManager(fileSystemName, totalSize); // should pass totalSize here rather than hardcoding
+        this.fsManager = fsManager;;
     }
 
     public void start(){
-        try (ServerSocket serverSocket = new ServerSocket(12345)) {
-            System.out.println("Server started. Listening on port 12345...");
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            System.out.println("Server started. Listening on port " + port + "...");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
@@ -33,22 +32,33 @@ public class FileServer {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         System.out.println("Received from client: " + line);
-                        String[] parts = line.split(" ");
+                        String[] parts = line.split(" ", 2);
                         String command = parts[0].toUpperCase();
 
-                        switch (command) {
-                            case "CREATE":
-                                fsManager.createFile(parts[1]);
-                                writer.println("SUCCESS: File '" + parts[1] + "' created.");
-                                writer.flush();
-                                break;
-                            //TODO: Implement other commands READ, WRITE, DELETE, LIST
-                            case "QUIT":
-                                writer.println("SUCCESS: Disconnecting.");
-                                return;
-                            default:
-                                writer.println("ERROR: Unknown command.");
-                                break;
+                        try {
+                            switch (command) {
+                                case "CREATE":
+                                    //Error handling for missing filename
+                                    if (parts.length < 2) {
+                                        writer.println("ERROR: filename required");
+                                        break;
+                                    }
+                                    //Create file
+                                    fsManager.createFile(parts[1]);
+                                    writer.println("SUCCESS: File '" + parts[1] + "' created.");
+                                    break;
+
+                                //TODO: Implement other commands READ, WRITE, DELETE, LIST              
+                                case "QUIT":
+                                    writer.println("SUCCESS: Disconnecting.");
+                                    return;
+                                    
+                                default:
+                                    writer.println("ERROR: Unknown command.");
+                                    break;
+                            }
+                        } catch (Exception e) {
+                            writer.println(e.getMessage()); //better error reporting to client
                         }
                     }
                 } catch (Exception e) {
@@ -66,5 +76,4 @@ public class FileServer {
             System.err.println("Could not start server on port " + port);
         }
     }
-
 }
