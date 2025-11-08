@@ -21,7 +21,14 @@ public class FileSystemManager {
     public FileSystemManager(String filename, int totalSize) {
         // Initialize the file system manager with a file
         if(instance == null) {
-            //TODO Initialize the file system
+            //TODO Initialize the file system: >Progress below
+            this.disk = new RandomAccessFile(diskfile, "rw");   //initialize 'virtual disk' for managing files
+            this.inodeTable = new FEntry[MAXFILES]; //initialize array of file entries
+            this.freeBlockList = new boolean[MAXBLOCKS]; //initializes array of free block (all blocks start free)
+            Arrays.fill(freeBlockList, true);
+
+            instance = this;
+
         } else {
             throw new IllegalStateException("FileSystemManager is already initialized.");
         }
@@ -30,7 +37,9 @@ public class FileSystemManager {
 
     public void createFile(String fileName) throws Exception {
         // TODO
-        throw new UnsupportedOperationException("Method not implemented yet.");
+        //throw new UnsupportedOperationException("Method not implemented yet.");
+        //FEntry newFile = new FEntry(fileName, (short) 0, (short) -1);
+
     }
 
 
