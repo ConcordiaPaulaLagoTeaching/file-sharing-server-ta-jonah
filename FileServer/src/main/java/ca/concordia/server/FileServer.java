@@ -41,13 +41,14 @@ public class FileServer {
                                 writer.flush();
                                 break;
                             case "READ":
-                                fsManager.readFile(parts[1]);
-                                writer.println("SUCCESS: File '" + parts[1] + "' was read.");
+                                String readString = fsManager.readFile(parts[1]);
+                                writer.println("SUCCESS: File '" + parts[1] + "' contains : " + readString);
                                 writer.flush();
                                 break;
                             case "WRITE":
-                                fsManager.writeFile(parts[1], parts[2]);
-                                writer.println("SUCCESS: File '" + parts[1] + "' written to with : " + parts[2]);
+                                String writenLine = line.replace(parts[0] + " " + parts[1] + " ", "");
+                                fsManager.writeFile(parts[1], writenLine);
+                                writer.println("SUCCESS: File '" + parts[1] + "' written to with : " + writenLine);
                                 writer.flush();
                                 break;
                             case "DELETE":
@@ -56,8 +57,8 @@ public class FileServer {
                                 writer.flush();
                                 break;
                             case "LIST":
-                                fsManager.list();
-                                writer.println("SUCCESS: files listed!");
+                                String list = fsManager.list();
+                                writer.println("SUCCESS: files listed! these are: " + list);
                                 writer.flush();
                                 break;
                             //TODO: Implement other commands READ, WRITE, DELETE, LIST
