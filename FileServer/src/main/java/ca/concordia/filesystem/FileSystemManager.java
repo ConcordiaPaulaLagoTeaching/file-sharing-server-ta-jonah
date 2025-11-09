@@ -38,11 +38,53 @@ public class FileSystemManager {
 
     }
 
+    //CREATE FILE
     public void createFile(String fileName) throws Exception {
-        // TODO
-        throw new UnsupportedOperationException("Method not implemented yet.");
-    }
+        try{
 
+            //Check if file name exists
+            for (int i=0; i<inodeTable.length; i++){
+                FEntry entry = inodeTable[i];
+                if (entry != null && entry.getFilename().equals(fileName)){
+                    throw new Exception("FileName already exists. Try again.");
+                    // return; //Stops here, to prevent duplicates of the existing file
+                }
+            }
+
+            //Check the first available fentry
+            int availableSpace = -1;
+            for (int i=0; i<inodeTable.length; i++){
+                if (inodeTable[i] == null){
+                    availableSpace =i;
+                    break;
+                }
+            }
+
+            if (availableSpace ==-1){
+                throw new Exception("No free file entries available.");
+                // return;
+            }
+
+            // Check if free/occupied nodes
+            short freeBlock=0;
+            while (freeBlock < freeBlockList.length && freeBlockList[freeBlock]){
+                freeBlock++;
+            }
+            if(freeBlock == freeBlockList.length){
+                throw new Exception("No free blocks available.");
+
+            }
+            freeBlockList[freeBlock]= true;
+
+            //Create the file
+            FEntry newFile = new FEntry (fileName, (short)0, freeBlock);
+            inodeTable[availableSpace] = newFile; //Store the new file
+
+        }catch(IllegalArgumentException e){
+            throw new Exception ("Unable to process request. Try again.");
+        }
+
+    }
 
     // TODO: Add readFile, writeFile and other required methods,
 }
