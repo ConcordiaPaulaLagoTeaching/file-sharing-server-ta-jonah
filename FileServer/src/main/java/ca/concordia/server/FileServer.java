@@ -1,4 +1,5 @@
 package ca.concordia.server;
+import ca.concordia.filesystem.ClientHandler;
 import ca.concordia.filesystem.FileSystemManager;
 
 import java.io.*;
@@ -23,7 +24,9 @@ public class FileServer {
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("Handling client: " + clientSocket);
+                System.out.println("Server handling client: " + clientSocket);
+                // Calling new thread to handle client
+                new Thread(new ClientHandler(clientSocket, fsManager)).start();
                 try (
                         BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                         PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)
