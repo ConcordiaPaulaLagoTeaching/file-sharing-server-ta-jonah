@@ -8,12 +8,13 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.IOException;
 
 public class FileSystemManager {
 
     private final int MAXFILES = 5;
     private final int MAXBLOCKS = 10;
-    private final static FileSystemManager instance = null;
+    private static FileSystemManager instance = null;
     private final RandomAccessFile disk;
     private final ReentrantLock globalLock = new ReentrantLock();
 
@@ -83,6 +84,7 @@ public class FileSystemManager {
                 freeEntry.setFilesize((short) 0);
                 freeEntry.setFirstBlock((short) -1); // No blocks assigned yet
                 freeEntry.setInUse(true);
+            }
             } finally {
                 globalLock.unlock();
             }
@@ -107,9 +109,13 @@ public class FileSystemManager {
             // Free up blocks
             int blockIndex = targetEntry.getFirstBlock();
             if (blockIndex >= 0 && blockIndex < MAXBLOCKS) {
-                zeroOutBlock(blockIndex);
+                try {
+                    zeroOutBlock(blockIndex); // this throws IOException
+                } catch (IOException e) { // handle it
+                    throw new RuntimeException("Failed to zero out block " + blockIndex, e);
+                }
                 freeBlockList[blockIndex] = true;
-            }
+        }
 
             // reset data
             targetEntry.clear();
@@ -143,20 +149,11 @@ public class FileSystemManager {
         disk.write(zeros);
     }
 
+
+
 }
 
+    // TODO: Add the following methods:
 
-    //this function creates an empty file if possible
-    public void createFile(String fileName) throws Exception {
-        // TODO
-        throw new UnsupportedOperationException("Method not implemented yet.");
-    }
-
-
-    // TODO: Add readFile, writeFile and other required methods,
-
-    //deleteFile(String fileName) removes file and zeroes out its blocks
     //writeFile(String filename, byte[] data) replaces contents of a file; must be atomic (no partial writes!)
     //readFile(String filename) returns data stored inside a file
-    //listFiles() returns names of all existing files
-}
