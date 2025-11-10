@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class FileSystemManager {
 
     private final int MAXFILES = 5;
-    private final int MAXBLOCKS = 10;
+    private int MAXBLOCKS = 10;
     private final static FileSystemManager instance = null;
     private RandomAccessFile disk = null;
     private final ReentrantLock globalLock = new ReentrantLock();
@@ -47,10 +47,10 @@ public class FileSystemManager {
                 disk.writeBytes("\n");
             }
             disk.writeBytes("EOF\n");
+            MAXBLOCKS = totalSize / BLOCK_SIZE;
         } else {
             throw new IllegalStateException("FileSystemManager is already initialized.");
         }
-
     }
 
     private int locateFreeBlock() {
