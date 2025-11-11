@@ -146,4 +146,30 @@ public class FileSystemManager {
             globalLock.unlock();
         }
     }
+
+    // read file
+    public byte[] readFile(String fileName) throws Exception {
+        globalLock.lock();
+        try {
+            int fileIndex = findFileIndex(fileName);
+            FEntry entry = inodeTable[fileIndex];
+            if (entry.getFilesize() == 0) {
+                return new byte[0];
+            }
+
+            byte[] data = new byte[entry.getFilesize()];
+            short firstBlock = entry.getFirstBlock();
+
+            if (firstBlock < 0) {
+                throw new Exception("ERROR: file " + fileName + " has no data blocks");
+            }
+
+            disk.seek((long) firstBlock * BLOCK_SIZE);
+            disk.read(data);
+
+            return data;
+        } finally {
+            globalLock.unlock();
+        }
+    }
 }
