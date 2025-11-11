@@ -172,4 +172,22 @@ public class FileSystemManager {
             globalLock.unlock();
         }
     }
+
+    // Delete file
+    public void deleteFile(String fileName) throws Exception {
+        globalLock.lock();
+        try {
+            int fileIndex = findFileIndex(fileName);
+            FEntry entry = inodeTable[fileIndex];
+
+            short firstBlock = entry.getFirstBlock();
+            if (firstBlock >= 0 && firstBlock < MAXBLOCKS) {
+                freeBlockList[firstBlock] = true;
+            }
+
+            clearFileEntry(entry);
+        } finally {
+            globalLock.unlock();
+        }
+    }
 }
