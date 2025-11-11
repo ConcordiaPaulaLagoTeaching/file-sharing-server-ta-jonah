@@ -190,4 +190,20 @@ public class FileSystemManager {
             globalLock.unlock();
         }
     }
+
+    // List file
+    public String[] listFiles() {
+        globalLock.lock();
+        try {
+            java.util.List<String> list = new java.util.ArrayList<>();
+            for (FEntry e : inodeTable) {
+                if (!e.getFilename().isEmpty()) {
+                    list.add(e.getFilename());
+                }
+            }
+            return list.toArray(new String[0]);
+        } finally {
+            globalLock.unlock();
+        }
+    }
 }
