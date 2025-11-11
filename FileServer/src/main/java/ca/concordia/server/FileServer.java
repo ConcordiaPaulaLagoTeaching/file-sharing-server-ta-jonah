@@ -44,6 +44,7 @@ public class FileServer {
                                 writer.flush();
                                 break;
                             //TODO: Implement other commands READ, WRITE, DELETE, LIST
+<<<<<<< HEAD
                             case "LIST": // List commmand wasnt implemented yet
                                 String[] files = fsManager.listFiles();
                                 writer.println("FILES: " + String.join(", ", files));
@@ -53,6 +54,19 @@ public class FileServer {
                                 fsManager.deleteFile(parts[1]);
                                 writer.println("SUCCESS: File '" + parts[1] + "' deleted.");
                                 writer.flush();
+=======
+                            case "LIST":
+                                //to do: implement list
+                                break;
+                            case "DELETE":
+                                //to do: implement delete
+                                break;
+                            case "READ":
+                                //to do: implement read
+                                break;
+                            case "WRITE":
+                                //to do: implement write
+>>>>>>> c45f706e8eba40c13324caed3c19b545fc408857
                                 break;
                             case "QUIT":
                                 writer.println("SUCCESS: Disconnecting.");
