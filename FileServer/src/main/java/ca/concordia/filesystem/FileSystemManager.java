@@ -72,5 +72,41 @@ public class FileSystemManager {
         }
     }
 
-// TODO: Add readFile, writeFile and other required methods,
+// TODO: Add readFile, writeFile and other required methods
+// Helper method
+    private int findFileIndex(String fileName) throws Exception {
+        for (int i = 0; i < MAXFILES; i++) {
+            if (inodeTable[i].getFilename().equals(fileName)) {
+                return i;
+            }
+        }
+        throw new Exception("ERROR: file " + fileName + "does not exist");
+    }
+
+    private int findFreeBlock() throws Exception {
+        for (int i = 0; i < MAXBLOCKS; i++) {
+            if (freeBlockList[i]) {
+                return i;
+            }
+        }
+        throw new Exception("ERROR: File too large");
+    }
+
+    private int countFreeBlocks() {
+        int count = 0;
+        for (boolean b : freeBlockList) {
+            if (b) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void clearFileEntry(FEntry entry) {
+        entry.setFilename("");
+        entry.setFilesize((short) 0);
+        entry.setFirstBlock((short) -1);
+    }
+
+    // Write file
 }
