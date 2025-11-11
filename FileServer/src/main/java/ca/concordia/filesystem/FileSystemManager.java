@@ -109,4 +109,41 @@ public class FileSystemManager {
     }
 
     // Write file
+    public void writeFile(String fileName, byte[] content) throws Exception {
+        globalLock.lock();
+        try {
+            int fileIndex = findFileIndex(fileName);
+            FEntry entry = inodeTable[fileIndex];
+
+            int blocksNeeded = (int) Math.ceil((double) content.length / BLOCK_SIZE);
+            if (blocksNeeded > countFreeBlocks()) {
+                throw new Exception("ERROR: file too large");
+            }
+            short firstBlock = entry.getFirstBlock();
+            if (firstBlock >= 0) {
+                for (int i = 0; i < MAXBLOCKS; i++) {
+                    freeBlockList[i] = true;
+                }
+            }
+            int offset = 0;
+            int firstAllocatedBlock = -1;
+
+            for (int b = 0; b < blocksNeeded; b++) {
+                int blockIndex = findFreeBlock();
+                freeBlockList[blockIndex] = false;
+
+                disk.seek((long) blockIndex * BLOCK_SIZE);
+                int len = Math.min(BLOCK_SIZE, content.length - offset);
+                disk.write(content, offset, len);
+                offset += len;
+                if (firstAllocatedBlock == -1) {
+                    firstAllocatedBlock == blockIndex;
+                }
+            }
+            entry.setFilesize((short) content.length);
+            entry.setFirstBlock((short) firstAllocatedBlock);
+        } finally {
+            globalLock.unlock();
+        }
+    }
 }
