@@ -33,6 +33,10 @@ public class FileSystemManager {
         throw new UnsupportedOperationException("Method not implemented yet.");
     }
 
+    //test
+    public static FileSystemManager getInstance() {
+        return instance;
+    }
 
     // TODO: Add readFile, writeFile and other required methods,
 }
