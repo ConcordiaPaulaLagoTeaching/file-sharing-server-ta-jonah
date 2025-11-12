@@ -14,12 +14,25 @@ import ca.concordia.filesystem.FileSystemManager;
 
 public class FileServer {
 
+    /**
+    * FileServer class acts as the main server for handling client requests.
+    * It uses a thread pool to manage multiple clients concurrently and synchronizes
+    * access to the file system so that only one writer can modify data at a time.
+    */
+
+    // File system manager instance
     private FileSystemManager fsManager;
+
+    // port number where server listens to the client connections
     private int port;
+
+    // Read-write lock for synchronizing file system access
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+    // Thread pool for handling client connections simultaneously (max 10 clients)
     private final ExecutorService pool;
 
-    // Constructor
+    // Constructor to initialize server
     public FileServer(int port, String fileSystemName, int totalSize) {
         this.fsManager = new FileSystemManager(fileSystemName, totalSize);
         this.port = port;
@@ -27,13 +40,16 @@ public class FileServer {
     }
 
     // Start server
+    // Each client connection is handled by a separate thread from the pool
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("File Server started. Listening on port " + port + "...");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("🧩 Connected: " + clientSocket);
+                System.out.println(" Connected: " + clientSocket);
+
+                // Handle each client in a separate thread
                 pool.execute(new ClientHandler(clientSocket, fsManager, lock));
             }
 
@@ -41,28 +57,41 @@ public class FileServer {
             e.printStackTrace();
             System.err.println("Could not start server on port " + port);
         }
-    }
+    }  
+    
+    /**
+     * Inner class that represents a worker thread handling one client.
+     * Each client connection is assigned a new ClientHandler instance.
+     */
 
     // Client handler class
     private static class ClientHandler implements Runnable {
 
-        private final Socket socket;
-        private final FileSystemManager fs;
-        private final ReentrantReadWriteLock lock;
+        private final Socket socket; // Client socket
+        private final FileSystemManager fs; // File system manager (shared)
+        private final ReentrantReadWriteLock lock; // Read-write lock for synchronization
 
+
+        // Constructor for client handler
         public ClientHandler(Socket socket, FileSystemManager fs, ReentrantReadWriteLock lock) {
             this.socket = socket;
             this.fs = fs;
             this.lock = lock;
         }
 
+        // Main run method for handling client commands
+
         @Override
         public void run() {
             try (
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream())); PrintWriter writer = new PrintWriter(socket.getOutputStream(), true)) {
+                    // Reader to receive client commands
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream())); 
+                    // Writer to send responses back to client
+                    PrintWriter writer = new PrintWriter(socket.getOutputStream(), true)) {
                 writer.println("Welcome to the File Server!");
                 String line;
 
+                // Read commands from client until disconnection
                 while ((line = reader.readLine()) != null) {
                     System.out.println("Received: " + line);
                     String response = handleCommand(line.trim());
@@ -77,6 +106,7 @@ public class FileServer {
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
+                // Close client socket when done
                 try {
                     socket.close();
                 } catch (IOException ignored) {
@@ -85,17 +115,21 @@ public class FileServer {
             }
         }
 
-        // Handle client commands
+        // Method to process and respond to client commands
+        // Supports CREATE, WRITE, READ, DELETE, LIST, QUIT commands
         private String handleCommand(String commandLine) {
             try {
                 if (commandLine.isEmpty()) {
                     return "ERROR: Empty command";
                 }
 
+                // Split command and arguments into 3 parts: command, filename, content
                 String[] parts = commandLine.split(" ", 3);
                 String cmd = parts[0].toUpperCase();
 
                 switch (cmd) {
+
+                    // Create a new file
                     case "CREATE":
                         if (parts.length < 2) {
                             return "ERROR: Missing filename";
@@ -108,6 +142,7 @@ public class FileServer {
                             lock.writeLock().unlock();
                         }
 
+                    // Write content to a file
                     case "WRITE":
                         if (parts.length < 3) {
                             return "ERROR: Missing filename or content";
@@ -120,6 +155,7 @@ public class FileServer {
                             lock.writeLock().unlock();
                         }
 
+                    // Read content from a file
                     case "READ":
                         if (parts.length < 2) {
                             return "ERROR: Missing filename";
@@ -132,6 +168,7 @@ public class FileServer {
                             lock.readLock().unlock();
                         }
 
+                    // Delete a file
                     case "DELETE":
                         if (parts.length < 2) {
                             return "ERROR: Missing filename";
@@ -144,6 +181,7 @@ public class FileServer {
                             lock.writeLock().unlock();
                         }
 
+                    // List all files
                     case "LIST":
                         lock.readLock().lock();
                         try {
@@ -156,6 +194,7 @@ public class FileServer {
                             lock.readLock().unlock();
                         }
 
+                    // Client Disconnects
                     case "QUIT":
                         return "SUCCESS: Disconnecting.";
 
@@ -163,6 +202,7 @@ public class FileServer {
                         return "ERROR: Unknown command.";
                 }
 
+            // Catch any exceptions and return error message
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }
@@ -172,6 +212,6 @@ public class FileServer {
     // Main method to start the server
     public static void main(String[] args) {
         FileServer server = new FileServer(12345, "server_disk.img", 128 * 10);
-        server.start();
+        server.start(); // Start listening for client connections
     }
 }
