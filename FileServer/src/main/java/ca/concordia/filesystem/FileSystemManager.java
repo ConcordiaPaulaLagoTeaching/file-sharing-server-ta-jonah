@@ -137,7 +137,7 @@ public class FileSystemManager {
                 disk.write(content, offset, len);
                 offset += len;
                 if (firstAllocatedBlock == -1) {
-                    firstAllocatedBlock == blockIndex;
+                    firstAllocatedBlock = blockIndex;
                 }
             }
             entry.setFilesize((short) content.length);
