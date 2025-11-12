@@ -20,7 +20,7 @@ public class FileSystemManager {
 
     // constructor
     public FileSystemManager(String filename, int totalSize) {
-        // Initialize the file system manager with a file
+        //  Initialize the file system manager with a file
         if (instance == null) {
             instance = this;
             inodeTable = new FEntry[MAXFILES];
@@ -33,7 +33,6 @@ public class FileSystemManager {
             }
             try {
                 disk = new RandomAccessFile(filename, "rw");
-                disk.setLength(totalSize);
             } catch (Exception e) {
                 throw new RuntimeException("Unable to create virtual disk file", e);
             }
