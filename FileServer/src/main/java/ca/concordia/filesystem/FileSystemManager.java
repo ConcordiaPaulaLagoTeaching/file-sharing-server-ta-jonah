@@ -9,8 +9,8 @@ public class FileSystemManager {
 
     private final int MAXFILES = 5;
     private final int MAXBLOCKS = 10;
-    private final static FileSystemManager instance;
-    private final RandomAccessFile disk;
+    private final static FileSystemManager instance = null;
+    private RandomAccessFile disk = null;
     private final ReentrantLock globalLock = new ReentrantLock();
 
     private static final int BLOCK_SIZE = 128; // Example block size
@@ -18,10 +18,13 @@ public class FileSystemManager {
     private FEntry[] inodeTable; // Array of inodes
     private boolean[] freeBlockList; // Bitmap for free blocks
 
-    public FileSystemManager(String filename, int totalSize) {
+    public FileSystemManager(String filename, int totalSize) throws Exception {
+        this.disk = disk;
         // Initialize the file system manager with a file
         if(instance == null) {
-            //TODO Initialize the file system
+            /// Does file exist? Yes.
+
+
         } else {
             throw new IllegalStateException("FileSystemManager is already initialized.");
         }
