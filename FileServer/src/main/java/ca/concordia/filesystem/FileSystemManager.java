@@ -87,4 +87,31 @@ public class FileSystemManager {
     }
 
     // TODO: Add readFile, writeFile and other required methods,
+
+    public void writeFile(String fileName) throws Exception {
+
+        try {
+            checkFile(fileName);
+            
+        } catch (Exception e) {
+            throw new Exception (e.getMessage());
+        }
+        
+    }
+
+    public void checkFile(String fileName) throws Exception {
+        boolean fileExist = false;
+
+        //Check if file exists
+        for (int i=0; i<inodeTable.length; i++){
+            FEntry entry = inodeTable[i];
+            if (entry != null && entry.getFilename().equals(fileName)){
+                fileExist = true;
+            }
+        }
+
+        if(fileExist == false) {
+            throw new Exception(fileName + " does not exist");
+        }
+    }
 }

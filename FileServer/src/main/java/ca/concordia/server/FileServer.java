@@ -1,11 +1,11 @@
 package ca.concordia.server;
-import ca.concordia.filesystem.FileSystemManager;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+
+import ca.concordia.filesystem.FileSystemManager;
 
 public class FileServer {
 
@@ -36,20 +36,33 @@ public class FileServer {
                         String[] parts = line.split(" ");
                         String command = parts[0].toUpperCase();
 
-                        switch (command) {
-                            case "CREATE":
-                                fsManager.createFile(parts[1]);
-                                writer.println("SUCCESS: File '" + parts[1] + "' created.");
-                                writer.flush();
-                                break;
-                            //TODO: Implement other commands READ, WRITE, DELETE, LIST
-                            case "QUIT":
-                                writer.println("SUCCESS: Disconnecting.");
-                                return;
-                            default:
-                                writer.println("ERROR: Unknown command.");
-                                break;
-                        }
+                            try {
+                                switch (command) {
+                                    case "CREATE":
+                                        fsManager.createFile(parts[1]);
+                                        writer.println("SUCCESS: File '" + parts[1] + "' created.");
+                                        break;
+
+                                    case "WRITE":
+                                        fsManager.writeFile(parts[1]);
+                                        writer.println("SUCCESS: File '" + parts[1] + "' found.");
+                                        break;
+
+                                    case "QUIT":
+                                        writer.println("SUCCESS: Disconnecting.");
+                                        return;
+
+                                    default:
+                                        writer.println("ERROR: Unknown command.");
+                                        break;
+                                }
+                            } catch (Exception e) {
+                                // Catch any error thrown by FileSystemManager and send it back
+                                e.printStackTrace(); // visible in server terminal
+                                writer.println(e.getMessage());
+                            }
+
+                            writer.flush();
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
