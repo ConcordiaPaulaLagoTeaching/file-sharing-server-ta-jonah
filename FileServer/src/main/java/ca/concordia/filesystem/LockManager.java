@@ -18,10 +18,6 @@ public class LockManager {
         return fileLocks.computeIfAbsent(inodeIndex, k -> new ReentrantLock());
     }
 
-    public ReentrantLock blockLock(int blockNumber) {
-        return blockLocks.computeIfAbsent(blockNumber, k -> new ReentrantLock());
-    }
-
     // Ordering the lock based on rank, instance key and lock
    public static final class LockHandle {
         public final int rank;

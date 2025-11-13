@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class FileSystemManager {
 
@@ -85,29 +84,14 @@ public class FileSystemManager {
     private List<LockManager.LockHandle> locksForFileOp(int inodeIndex) {
         List<LockManager.LockHandle> locks = new ArrayList<>();
         // GLOBAL rank 0
-        locks.add(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        locks.add(new LockManager.LockHandle(LockLevel.GLOBAL.getRank(), -1, lockManager.getGlobalLock()));
         // FILE rank 1
-        locks.add(new LockManager.LockHandle(1, inodeIndex, lockManager.fileLock(inodeIndex)));
-        return locks;
-    }
-
-    // Building lock handles for multiple-file commands
-    private List<LockManager.LockHandle> locksForFiles(int[] inodeIndexes) {
-        List<Integer> ids = new ArrayList<>();
-        for  (int inodeIndex : inodeIndexes) {
-            ids.add(inodeIndex);
-        }
-        Collections.sort(ids);
-        List<LockManager.LockHandle> locks = new ArrayList<>();
-        locks.add(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
-        for (int id : ids) {
-            locks.add(new LockManager.LockHandle(1, id, lockManager.fileLock(id)));
-        }
+        locks.add(new LockManager.LockHandle(LockLevel.FILE.getRank(), inodeIndex, lockManager.fileLock(inodeIndex)));
         return locks;
     }
 
     public void createFile(String fileName) throws Exception {
-        List<LockManager.LockHandle> globalOnly = Collections.singletonList(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        List<LockManager.LockHandle> globalOnly = Collections.singletonList(new LockManager.LockHandle(LockLevel.GLOBAL.getRank(), -1, lockManager.getGlobalLock()));
         lockManager.acquireOrdered(globalOnly);
         try {
             System.out.println("Creating new file: " + fileName + "....");
@@ -126,11 +110,13 @@ public class FileSystemManager {
                 return;
             }
 
-            lockManager.releaseOrdered(globalOnly);
-            List<LockManager.LockHandle> locks = locksForFileOp(freeFile);
+            List<LockManager.LockHandle> locks = new ArrayList<>();
+            locks.add(new LockManager.LockHandle(LockLevel.GLOBAL.getRank(), -1, lockManager.getGlobalLock()));
+            locks.add(new LockManager.LockHandle(LockLevel.FILE.getRank(), freeFile, lockManager.fileLock(freeFile)));
+
             lockManager.acquireOrdered(locks);
             try {
-                if (inodeTable[freeFile] == null) {
+                if (inodeTable[freeFile] != null) {
                     System.err.println("Race condition -> inode already in use: " + freeFile);
                     return;
                 }
@@ -157,7 +143,6 @@ public class FileSystemManager {
                 disk.writeBytes(inodeTable[freeFile].getFilename());
                 disk.seek(freeFile * 15L + 11);
                 disk.writeBytes(String.valueOf(inodeTable[freeFile].getFilesize()));
-//                disk[i].writeBytes("Created by means of File server! Yesss ----------------------------------------------------------------------|>\n");
                 if (freeFile == MAXFILES - 1 && inodeTable[freeFile] != null) {
                     System.out.println("No more space to write: " + fileName);
                     return;
@@ -261,8 +246,8 @@ public class FileSystemManager {
     }
 
     public String list() throws Exception {
-        List<LockManager.LockHandle> globalLock =
-                Collections.singletonList(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        List<LockManager.LockHandle> globalLock = Collections.singletonList(new LockManager.LockHandle(LockLevel.GLOBAL.getRank(), -1, lockManager.getGlobalLock()));
+
         lockManager.acquireOrdered(globalLock);
         try {
             String listFiles = "";
