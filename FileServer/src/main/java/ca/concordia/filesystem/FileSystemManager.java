@@ -23,6 +23,8 @@ public class FileSystemManager {
     private boolean[] freeBlockList; // Bitmap for free blocks
 
     public FileSystemManager(String filename, int totalSize) throws Exception {
+        // totalSize = metadataSize + (MAXBLOCKS × BLOCKSIZE)
+
         // Prevent multiple initializations
         if (instance != null) {
             throw new IllegalStateException("FileSystemManager is already initialized.");
