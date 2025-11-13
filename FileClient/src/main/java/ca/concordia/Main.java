@@ -20,9 +20,15 @@ public class Main {
             System.out.println("Connected to the server at localhost:12345");
 
             //read user input from console
-            String userInput = scanner.nextLine();
             try (
                     BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)) {
+                // Read ALL pending welcome messages
+                // ⭐ Read exactly one welcome message
+                String welcome = reader.readLine();
+                System.out.println(welcome);
+
+                System.out.print("> ");
+                String userInput = scanner.nextLine();
                 while (userInput != null && !userInput.isEmpty() && !userInput.equalsIgnoreCase("exit") && !userInput.equalsIgnoreCase("quit")) {
                     writer.println(userInput);
                     System.out.println("Message sent to the server: " + userInput);
