@@ -26,13 +26,10 @@ public class Main {
                 // Read exactly one welcome message
                 String welcome = reader.readLine();
                 System.out.println(welcome);
-                reader.readLine();
-
-                String userInput;
 
                 while (true) {
                     System.out.print("> ");
-                    userInput = scanner.nextLine();
+                    String userInput = scanner.nextLine();
 
                     if (userInput.isEmpty()) {
                         continue;
