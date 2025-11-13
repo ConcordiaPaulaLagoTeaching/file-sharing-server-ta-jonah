@@ -33,7 +33,9 @@ public class FileServer {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         System.out.println("Received from client: " + line);
-                        String[] parts = line.split(" ");
+
+                        // Split the line into three (Command, filename, content)
+                        String[] parts = line.split(" ", 3);
                         String command = parts[0].toUpperCase();
 
                             try {
@@ -44,9 +46,14 @@ public class FileServer {
                                         break;
 
                                     case "WRITE":
-                                        fsManager.writeFile(parts[1]);
-                                        writer.println("SUCCESS: File '" + parts[1] + "' found.");
+                                        fsManager.writeFile(parts[1], parts[2].getBytes());
+                                        writer.println("SUCCESS: File '" + parts[1] + "' written to.");
                                         break;
+
+                                    case "READ":
+                                        byte[] content = fsManager.readFile(parts[1]);
+                                        writer.println("CONTENT: " + new String(content) + " (" + content.length + " bytes)");
+                                    break;
 
                                     case "QUIT":
                                         writer.println("SUCCESS: Disconnecting.");
@@ -58,7 +65,7 @@ public class FileServer {
                                 }
                             } catch (Exception e) {
                                 // Catch any error thrown by FileSystemManager and send it back
-                                e.printStackTrace(); // visible in server terminal
+                                e.printStackTrace();
                                 writer.println(e.getMessage());
                             }
 
