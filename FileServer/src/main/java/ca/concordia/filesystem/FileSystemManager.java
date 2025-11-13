@@ -20,9 +20,8 @@ public class FileSystemManager {
 
     public FileSystemManager(String filename, int totalSize) {
         // Initialize the file system manager with a file
-        if(instance == null) {
-            //TODO Initialize the file system
 
+        if(instance == null) {
             // We Create a Disk file which will be managed by Filesystem
             try {
                 this.disk = new RandomAccessFile(filename, "rw");
@@ -81,10 +80,98 @@ public class FileSystemManager {
             inodeTable[availableSpace] = newFile; //Store the new file
 
         }catch(IllegalArgumentException e){
-            throw new Exception ("Unable to process request. Try again.");
+            throw new Exception (e.getMessage());
         }
 
     }
 
     // TODO: Add readFile, writeFile and other required methods,
+
+    public void writeFile(String fileName, byte[] contents) throws Exception {
+        globalLock.lock();
+        try {
+            // Check if the file exists and finds first entry
+            FEntry target = checkFile(fileName);
+    
+            // Calculate how many blocks we need
+            int bytesToWrite = contents.length;
+            int blocksNeeded = (int) Math.ceil((double) bytesToWrite / BLOCK_SIZE);
+
+            // Make sure we have enough free blocks
+            int freeCount = 0;
+            for (boolean used : freeBlockList){
+                if (!used) freeCount++;     
+            }
+                
+            if (blocksNeeded > freeCount){
+                throw new Exception("ERROR: file too large.");
+            }
+
+            // Get the first free block
+            short firstBlock = target.getFirstBlock();
+            long offset = firstBlock * BLOCK_SIZE;
+            disk.seek(offset);
+
+            // Write the bytes to the disk file
+            disk.write(contents);
+
+            // Update metadata
+            target.setFilesize((short) bytesToWrite);
+
+            System.out.println("File " + fileName + " written successfully (" + bytesToWrite + " bytes).");
+
+        } catch (Exception e) {
+            throw new Exception("Error writing file: " + e.getMessage());
+        } finally {
+            globalLock.unlock();
+        }
+    }
+
+    public byte[] readFile(String fileName) throws Exception {
+        globalLock.lock();
+        try {
+            // Check if the file exists and finds first entry
+            FEntry target = checkFile(fileName);
+
+            // Get size and offset
+            int size = Short.toUnsignedInt(target.getFilesize());
+            if (size == 0) return new byte[0];
+
+            long offset = (long) target.getFirstBlock() * BLOCK_SIZE;
+            if (offset < 0) throw new Exception("Invalid block offset.");
+
+            // Reading bytes
+            byte[] buf = new byte[size];
+            disk.seek(offset);
+            disk.readFully(buf, 0, size);
+
+            return buf;
+
+        } catch (Exception e) {
+            throw new Exception(e.getMessage());
+        } finally {
+            globalLock.unlock();
+        }
+    }
+
+
+    public FEntry checkFile(String fileName) throws Exception {
+        boolean fileExist = false;
+        FEntry target = null;
+
+        //Check if file exists and takes first entry
+        for (int i=0; i<inodeTable.length; i++){
+            FEntry entry = inodeTable[i];
+            if (entry != null && entry.getFilename().equals(fileName)){
+                fileExist = true;
+                target = entry;
+            }
+        }
+
+        if(fileExist == false) {
+            throw new Exception("ERROR: file " + fileName + " does not exist.");
+        }
+
+        return target;
+    }
 }
