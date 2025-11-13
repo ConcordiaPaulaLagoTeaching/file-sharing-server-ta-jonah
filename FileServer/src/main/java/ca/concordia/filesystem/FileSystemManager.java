@@ -48,7 +48,7 @@ public class FileSystemManager {
         globalLock.lock();
         try {
             if (fileName.length() > 11) {
-                throw new Exception("ERROR: filename too long");
+                throw new Exception("ERROR: Filename cannot be longer than 11 characters.");
             }
             // check if file already exists
             for (FEntry e : inodeTable) {
@@ -79,7 +79,7 @@ public class FileSystemManager {
                 return i;
             }
         }
-        throw new Exception("ERROR: file " + fileName + "does not exist");
+        throw new Exception("ERROR: file " + fileName + " does not exist");
     }
 
     private int findFreeBlock() throws Exception {
