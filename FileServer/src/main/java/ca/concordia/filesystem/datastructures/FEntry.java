@@ -44,4 +44,17 @@ public class FEntry {
     public short getFirstBlock() {
         return firstBlock;
     }
+
+    public void setFirstBlock(short block) {
+        this.firstBlock = block;
+    }
+
+    // Needed because your FileSystemManager calls setSize()
+    public void setSize(int size) {
+        if (size < 0 || size > Short.MAX_VALUE)
+            throw new IllegalArgumentException("Size out of range");
+        this.filesize = (short) size;
+    }
+
+
 }

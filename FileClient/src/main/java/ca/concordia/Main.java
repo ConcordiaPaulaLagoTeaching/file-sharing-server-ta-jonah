@@ -13,6 +13,7 @@ public class Main {
     public static void main(String[] args) {
         //Socket CLient
         System.out.println("Hello and welcome!");
+        // Thread[] clientPool = new Thread[1000]; forloop 0 1000  clientPool[i] = new Thread(ClientHandle());
         Scanner scanner = new Scanner(System.in);
 
         try{
