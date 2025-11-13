@@ -6,7 +6,6 @@ import ca.concordia.filesystem.datastructures.FNode;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileSystemManager {
@@ -15,8 +14,7 @@ public class FileSystemManager {
     private final int MAXBLOCKS = 10;
     private /*final*/ static FileSystemManager instance = null; // Preserved as-is
     private final RandomAccessFile disk;
-    private final ReentrantLock globalLock = new ReentrantLock();
-    private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final ReentrantReadWriteLock globalLock = new ReentrantReadWriteLock();
 
     private static final int BLOCK_SIZE = 128;
 
@@ -67,7 +65,7 @@ public class FileSystemManager {
 
     // CREATE operation
     public void createFile(String fileName) throws Exception {
-        globalLock.lock();
+        globalLock.writeLock().lock();
         try {
             if (fileName.length() > 11) throw new Exception("ERROR: filename too large");
 
@@ -88,13 +86,13 @@ public class FileSystemManager {
 
             throw new Exception("ERROR: no space for new file");
         } finally {
-            globalLock.unlock();
+            globalLock.writeLock().unlock();
         }
     }
 
     // DELETE operation
     public void deleteFile(String fileName) throws Exception {
-        globalLock.lock();
+        globalLock.writeLock().lock();
         try {
             for (FEntry entry : inodeTable) {
                 if (!entry.isFree() && entry.getFilename().equals(fileName)) {
@@ -117,13 +115,13 @@ public class FileSystemManager {
             }
             throw new Exception("ERROR: file " + fileName + " does not exist");
         } finally {
-            globalLock.unlock();
+            globalLock.writeLock().unlock();
         }
     }
 
     // WRITE operation
     public void writeFile(String fileName, byte[] contents) throws Exception {
-        readWriteLock.writeLock().lock();
+        globalLock.writeLock().lock();
         try {
             int blocksNeeded = (contents.length + BLOCK_SIZE - 1) / BLOCK_SIZE;
             List<Integer> freeNodes = new ArrayList<>();
@@ -174,13 +172,13 @@ public class FileSystemManager {
                 }
             }
         } finally {
-            readWriteLock.writeLock().unlock();
+            globalLock.writeLock().unlock();
         }
     }
 
     // READ operation
     public byte[] readFile(String fileName) throws Exception {
-        readWriteLock.readLock().lock();
+        globalLock.readLock().lock();
         try {
             for (FEntry entry : inodeTable) {
                 if (!entry.isFree() && entry.getFilename().equals(fileName)) {
@@ -201,13 +199,13 @@ public class FileSystemManager {
             }
             throw new Exception("ERROR: file " + fileName + " does not exist");
         } finally {
-            readWriteLock.readLock().unlock();
+            globalLock.readLock().unlock();
         }
     }
 
     // LIST operation
     public String[] listFiles() {
-        globalLock.lock();
+        globalLock.readLock().lock();
         try {
             List<String> files = new ArrayList<>();
             for (FEntry entry : inodeTable) {
@@ -217,8 +215,7 @@ public class FileSystemManager {
             }
             return files.toArray(new String[0]);
         } finally {
-            globalLock.unlock();
+            globalLock.readLock().unlock();
         }
     }
 }
-
