@@ -3,10 +3,12 @@ package ca.concordia.filesystem;
 import ca.concordia.filesystem.datastructures.FEntry;
 import ca.concordia.filesystem.datastructures.FNode;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class FileSystemManager {
@@ -15,7 +17,6 @@ public class FileSystemManager {
     private int MAXBLOCKS = 10;
     private final static FileSystemManager instance = null;
     private RandomAccessFile disk = null;
-    private final ReentrantLock globalLock = new ReentrantLock();
 
     private static final int BLOCK_SIZE = 128; // Example block size
 
@@ -23,10 +24,11 @@ public class FileSystemManager {
     private boolean[] freeBlockList = new boolean[MAXBLOCKS]; // Bitmap for free blocks
     private FNode[] blockAddrTable = new FNode[MAXBLOCKS];
 
+    private final LockManager lockManager = new LockManager();
+
     public FileSystemManager(String filename, int totalSize) throws IOException {
         // Initialize the file system manager with a file
         if (instance == null) {
-            //TODO Initialize the file system
             Arrays.fill(freeBlockList, true);
             for (int i = 0; i < MAXBLOCKS; i++) {
                 blockAddrTable[i] = new FNode(-i);
@@ -79,8 +81,34 @@ public class FileSystemManager {
         return -1;
     }
 
+    // Building lock handles for single-file commands
+    private List<LockManager.LockHandle> locksForFileOp(int inodeIndex) {
+        List<LockManager.LockHandle> locks = new ArrayList<>();
+        // GLOBAL rank 0
+        locks.add(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        // FILE rank 1
+        locks.add(new LockManager.LockHandle(1, inodeIndex, lockManager.fileLock(inodeIndex)));
+        return locks;
+    }
+
+    // Building lock handles for multiple-file commands
+    private List<LockManager.LockHandle> locksForFiles(int[] inodeIndexes) {
+        List<Integer> ids = new ArrayList<>();
+        for  (int inodeIndex : inodeIndexes) {
+            ids.add(inodeIndex);
+        }
+        Collections.sort(ids);
+        List<LockManager.LockHandle> locks = new ArrayList<>();
+        locks.add(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        for (int id : ids) {
+            locks.add(new LockManager.LockHandle(1, id, lockManager.fileLock(id)));
+        }
+        return locks;
+    }
+
     public void createFile(String fileName) throws Exception {
-        globalLock.lock();
+        List<LockManager.LockHandle> globalOnly = Collections.singletonList(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        lockManager.acquireOrdered(globalOnly);
         try {
             System.out.println("Creating new file: " + fileName + "....");
 
@@ -97,48 +125,71 @@ public class FileSystemManager {
                 System.err.println("Disk is full for file: " + fileName + " to be added to memory");
                 return;
             }
-            blockAddrTable[freeBlockAddr] = new FNode(freeBlockAddr + 1);
 
-            disk.seek(freeFile * 15L + 14);
-            disk.writeBytes(String.valueOf(blockAddrTable[freeBlockAddr].getBlockIndex()));
-            System.out.println("Wrote into the file!: " + fileName);
-            freeBlockList[freeBlockAddr] = false;
-
-            disk.seek(MAXFILES * 15 + (blockAddrTable[freeBlockAddr].getBlockIndex()) * 4L);
-            disk.writeBytes("~");
-            freeFile = locateFreeFile();
+            lockManager.releaseOrdered(globalOnly);
+            List<LockManager.LockHandle> locks = locksForFileOp(freeFile);
+            lockManager.acquireOrdered(locks);
             try {
-                inodeTable[freeFile] = new FEntry(fileName, (short) 0, (short) (freeBlockAddr + 1));
-            } catch (IllegalArgumentException e) {
-                System.err.println("Invalid filename length: " + fileName);
-                return;
-            }
-            System.out.println(inodeTable[freeFile].getFilename());
-            disk.seek(freeFile * 15L);
-            disk.writeBytes(inodeTable[freeFile].getFilename());
-            disk.seek(freeFile * 15L + 11);
-            disk.writeBytes(String.valueOf(inodeTable[freeFile].getFilesize()));
+                if (inodeTable[freeFile] == null) {
+                    System.err.println("Race condition -> inode already in use: " + freeFile);
+                    return;
+                }
+
+
+                blockAddrTable[freeBlockAddr] = new FNode(freeBlockAddr + 1);
+
+                disk.seek(freeFile * 15L + 14);
+                disk.writeBytes(String.valueOf(blockAddrTable[freeBlockAddr].getBlockIndex()));
+                System.out.println("Wrote into the file!: " + fileName);
+                freeBlockList[freeBlockAddr] = false;
+
+                disk.seek(MAXFILES * 15 + (blockAddrTable[freeBlockAddr].getBlockIndex()) * 4L);
+                disk.writeBytes("~");
+                freeFile = locateFreeFile();
+                try {
+                    inodeTable[freeFile] = new FEntry(fileName, (short) 0, (short) (freeBlockAddr + 1));
+                } catch (IllegalArgumentException e) {
+                    System.err.println("Invalid filename length: " + fileName);
+                    return;
+                }
+                System.out.println(inodeTable[freeFile].getFilename());
+                disk.seek(freeFile * 15L);
+                disk.writeBytes(inodeTable[freeFile].getFilename());
+                disk.seek(freeFile * 15L + 11);
+                disk.writeBytes(String.valueOf(inodeTable[freeFile].getFilesize()));
 //                disk[i].writeBytes("Created by means of File server! Yesss ----------------------------------------------------------------------|>\n");
-            if (freeFile == MAXFILES - 1 && inodeTable[freeFile] != null) {
-                System.out.println("No more space to write: " + fileName);
-                return;
+                if (freeFile == MAXFILES - 1 && inodeTable[freeFile] != null) {
+                    System.out.println("No more space to write: " + fileName);
+                    return;
+                }
+                System.out.println("New file: " + fileName + " created");
+            } finally {
+                lockManager.releaseOrdered(locks);
             }
-            System.out.println("New file: " + fileName + " created");
         } finally {
-            globalLock.unlock();
+            try {
+                if (lockManager.getGlobalLock().isHeldByCurrentThread()) lockManager.getGlobalLock().unlock();
+            } catch (Exception ignored) {}
         }
     }
 
     public String readFile(String fileName) throws Exception {
-        globalLock.lock();
+        int existingFile = fileExists(fileName);
+        if (existingFile == -1) {
+            System.err.println("File not found: " + fileName);
+            return null;
+        }
+
+        List<LockManager.LockHandle> locks = locksForFileOp(existingFile);
+        lockManager.acquireOrdered(locks);
         try {
-            StringBuilder readString = new StringBuilder();
-            System.out.println("Reading from file: " + fileName);
-            int existingFile = fileExists(fileName);
-            if (existingFile == -1) {
-                System.err.println("File not found: " + fileName);
+            if (inodeTable[existingFile] == null || !inodeTable[existingFile].getFilename().equals(fileName)) {
+                System.err.println("File not found (after locking): " + fileName);
                 return null;
             }
+
+            StringBuilder readString = new StringBuilder();
+            System.out.println("Reading from file: " + fileName);
             String line;
             int first = inodeTable[existingFile].getFirstBlock() - 1;
             do {
@@ -151,16 +202,22 @@ public class FileSystemManager {
             System.out.println(readString);
             return readString.toString();
         } finally {
-            globalLock.unlock();
+            lockManager.releaseOrdered(locks);
         }
     }
 
     public void writeFile(String fileName, String text) throws Exception {
-        globalLock.lock();
+        int existingFile = fileExists(fileName);
+        if (existingFile == -1) {
+            System.err.println("File not found: " + fileName);
+            return;
+        }
+
+        List<LockManager.LockHandle> locks = locksForFileOp(existingFile);
+        lockManager.acquireOrdered(locks);
         try {
-            int existingFile = fileExists(fileName);
-            if (existingFile == -1) {
-                System.err.println("File not found: " + fileName);
+            if (inodeTable[existingFile] == null || !inodeTable[existingFile].getFilename().equals(fileName)) {
+                System.err.println("File not found (after locking): " + fileName);
                 return;
             }
             disk.seek(existingFile * 15L + 11);
@@ -199,12 +256,14 @@ public class FileSystemManager {
             }
             System.out.println("File: " + fileName + " was modified!");
         } finally {
-            globalLock.unlock();
+            lockManager.releaseOrdered(locks);
         }
     }
 
     public String list() throws Exception {
-        globalLock.lock();
+        List<LockManager.LockHandle> globalLock =
+                Collections.singletonList(new LockManager.LockHandle(0, -1, lockManager.getGlobalLock()));
+        lockManager.acquireOrdered(globalLock);
         try {
             String listFiles = "";
             System.out.println("Listing files: ");
@@ -219,15 +278,22 @@ public class FileSystemManager {
             System.out.println("Done Listing files: ");
             return listFiles;
         }  finally {
-            globalLock.unlock();
+            lockManager.releaseOrdered(globalLock);
         }
     }
 
     public void deleteFile(String fileName) throws Exception {
+        int existingFile = fileExists(fileName);
+        if (existingFile == -1) {
+            System.err.println("File not found: " + fileName);
+            return;
+        }
+
+        List<LockManager.LockHandle> locks = locksForFileOp(existingFile);
+        lockManager.acquireOrdered(locks);
         try {
-            int existingFile = fileExists(fileName);
-            if (existingFile == -1) {
-                System.err.println("File not found: " + fileName);
+            if (inodeTable[existingFile] == null || !inodeTable[existingFile].getFilename().equals(fileName)) {
+                System.err.println("File not found (after locking): " + fileName);
                 return;
             }
             disk.seek(existingFile * 15L);
@@ -251,7 +317,8 @@ public class FileSystemManager {
             System.out.println("File: " + fileName + " was deleted!");
             inodeTable[existingFile] = null;
         } finally {
-            globalLock.unlock();
+            lockManager.releaseOrdered(locks);
         }
-    }  // TODO: Add readFile, writeFile and other required methods      DONE!(partially(~90%))
+    }
 }
+
