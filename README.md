@@ -11,3 +11,7 @@ AUTHORS:
 Name: Derek Saint-Jean 
 Student ID: 40286262
 Github Username: D-Rex30
+
+Name: Navnit Chittoo
+Student ID: 40268729
+Github Username: navnit7
