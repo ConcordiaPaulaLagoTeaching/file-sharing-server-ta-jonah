@@ -8,7 +8,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class LockManager {
     private final ReentrantLock globalLock = new ReentrantLock();
     private final ConcurrentHashMap<Integer, ReentrantLock> fileLocks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Integer, ReentrantLock> blockLocks = new ConcurrentHashMap<>();
 
     public ReentrantLock getGlobalLock() {
         return globalLock;
