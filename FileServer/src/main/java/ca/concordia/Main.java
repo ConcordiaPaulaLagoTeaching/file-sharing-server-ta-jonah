@@ -1,7 +1,9 @@
 package ca.concordia;
 
+
 import ca.concordia.server.FileServer;
 import ca.concordia.filesystem.FileSystemManager;
+
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -14,13 +16,20 @@ public class Main {
         System.out.printf("Hello and welcome!");
 
         FileServer server = new FileServer(12345, "filesystem.dat", 10 * 128);
-        server.start();
 
-        // Start the file server
         // totalSize = metadataSize + (MAXBLOCKS × BLOCKSIZE)
 
         String file_entry = args[0]; // command user enter
         int totalsize = Integer.parseInt(args[1]);
+
+        new Thread(() -> {
+            try {
+                server.start();
+                // Start the file server
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }).start();
 
         try{
             FileSystemManager fsm = new FileSystemManager(file_entry, totalsize);
@@ -36,14 +45,6 @@ public class Main {
                 else{
                     String[] parts = line.split("\\s+",3);
                     String cmd = parts[0].toUpperCase();
-
-
-                    System.out.print("Please select 1 of the following: \n");
-                    System.out.print("CREATE <file> \n");
-                    System.out.print("WRITE <file> <...> \n");
-                    System.out.print("READ <files> \n");
-                    System.out.print("DELETE <file> \n");
-                    System.out.print("LIST  \n");
 
                     try{
                         switch (cmd){
@@ -86,7 +87,7 @@ public class Main {
                             case "LIST": {
                                 List<String> names = Arrays.asList(fsm.listFiles());
                             }
-                            }
+                        }
                     } catch (Exception e) {
                         System.out.println("Incorrect command entered");
                         throw new RuntimeException(e);
@@ -104,7 +105,7 @@ public class Main {
         boolean flag = true;
         if(name.length() > 11){
             System.out.println("Name of file should be less than 11 characters");
-             flag = false;
+            flag = false;
         }
         return flag;
     }
