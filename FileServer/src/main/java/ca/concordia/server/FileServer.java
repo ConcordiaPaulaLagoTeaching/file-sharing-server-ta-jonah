@@ -15,11 +15,11 @@ import ca.concordia.filesystem.FileSystemManager;
 public class FileServer {
 
     /**
-    * FileServer class acts as the main server for handling client requests.
-    * It uses a thread pool to manage multiple clients concurrently and synchronizes
-    * access to the file system so that only one writer can modify data at a time.
-    */
-
+     * FileServer class acts as the main server for handling client requests. It
+     * uses a thread pool to manage multiple clients concurrently and
+     * synchronizes access to the file system so that only one writer can modify
+     * data at a time.
+     */
     // File system manager instance
     private FileSystemManager fsManager;
 
@@ -57,20 +57,18 @@ public class FileServer {
             e.printStackTrace();
             System.err.println("Could not start server on port " + port);
         }
-    }  
-    
-    /**
-     * Inner class that represents a worker thread handling one client.
-     * Each client connection is assigned a new ClientHandler instance.
-     */
+    }
 
+    /**
+     * Inner class that represents a worker thread handling one client. Each
+     * client connection is assigned a new ClientHandler instance.
+     */
     // Client handler class
     private static class ClientHandler implements Runnable {
 
         private final Socket socket; // Client socket
         private final FileSystemManager fs; // File system manager (shared)
         private final ReentrantReadWriteLock lock; // Read-write lock for synchronization
-
 
         // Constructor for client handler
         public ClientHandler(Socket socket, FileSystemManager fs, ReentrantReadWriteLock lock) {
@@ -80,19 +78,20 @@ public class FileServer {
         }
 
         // Main run method for handling client commands
-
         @Override
         public void run() {
             try (
                     // Reader to receive client commands
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream())); 
-                    // Writer to send responses back to client
-                    PrintWriter writer = new PrintWriter(socket.getOutputStream(), true)) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream())); // Writer to send responses back to client
+                     PrintWriter writer = new PrintWriter(socket.getOutputStream(), true)) {
                 writer.println("Welcome to the File Server!");
                 String line;
 
                 // Read commands from client until disconnection
                 while ((line = reader.readLine()) != null) {
+                    if (line.trim().isEmpty()) {
+                        continue;
+                    }
                     System.out.println("Received: " + line);
                     String response = handleCommand(line.trim());
                     writer.println(response);
@@ -202,7 +201,7 @@ public class FileServer {
                         return "ERROR: Unknown command.";
                 }
 
-            // Catch any exceptions and return error message
+                // Catch any exceptions and return error message
             } catch (Exception e) {
                 return "ERROR: " + e.getMessage();
             }

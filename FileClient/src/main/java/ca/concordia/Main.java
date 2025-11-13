@@ -23,20 +23,30 @@ public class Main {
             try (
                     BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)) {
                 // Read ALL pending welcome messages
-                // ⭐ Read exactly one welcome message
+                // Read exactly one welcome message
                 String welcome = reader.readLine();
                 System.out.println(welcome);
+                reader.readLine();
 
-                System.out.print("> ");
-                String userInput = scanner.nextLine();
-                while (userInput != null && !userInput.isEmpty() && !userInput.equalsIgnoreCase("exit") && !userInput.equalsIgnoreCase("quit")) {
+                String userInput;
+
+                while (true) {
+                    System.out.print("> ");
+                    userInput = scanner.nextLine();
+
+                    if (userInput.isEmpty()) {
+                        continue;
+
+                    }
+                    if (userInput.equalsIgnoreCase("exit") || userInput.equalsIgnoreCase("quit")) {
+                        break;
+                    }
+
                     writer.println(userInput);
                     System.out.println("Message sent to the server: " + userInput);
-                    //get response
+
                     String response = reader.readLine();
                     System.out.println("Response from server: " + response);
-
-                    userInput = scanner.nextLine(); // Read next line
                 }
 
                 // Close the socket
