@@ -7,6 +7,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileSystemManager {
 
@@ -15,6 +16,7 @@ public class FileSystemManager {
     private /*final*/ static FileSystemManager instance = null; // Preserved as-is
     private final RandomAccessFile disk;
     private final ReentrantLock globalLock = new ReentrantLock();
+    private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     private static final int BLOCK_SIZE = 128;
 
@@ -121,7 +123,7 @@ public class FileSystemManager {
 
     // WRITE operation
     public void writeFile(String fileName, byte[] contents) throws Exception {
-        globalLock.lock();
+        readWriteLock.writeLock().lock();
         try {
             int blocksNeeded = (contents.length + BLOCK_SIZE - 1) / BLOCK_SIZE;
             List<Integer> freeNodes = new ArrayList<>();
@@ -172,13 +174,13 @@ public class FileSystemManager {
                 }
             }
         } finally {
-            globalLock.unlock();
+            readWriteLock.writeLock().unlock();
         }
     }
 
     // READ operation
     public byte[] readFile(String fileName) throws Exception {
-        globalLock.lock();
+        readWriteLock.readLock().lock();
         try {
             for (FEntry entry : inodeTable) {
                 if (!entry.isFree() && entry.getFilename().equals(fileName)) {
@@ -199,7 +201,7 @@ public class FileSystemManager {
             }
             throw new Exception("ERROR: file " + fileName + " does not exist");
         } finally {
-            globalLock.unlock();
+            readWriteLock.readLock().unlock();
         }
     }
 
