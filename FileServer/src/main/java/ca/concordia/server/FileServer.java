@@ -53,13 +53,17 @@ public class FileServer {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                     PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)
             ) {
+                System.out.println("Please enter a command: ");
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if(line.isEmpty())continue;
                     System.out.println("Received from client: " + line);
                     String[] parts = line.split(" ");
                     String command = parts[0].toUpperCase();
 
                     switch (command) {
+                        // Display Board - display all operations
                         case "CREATE":
                             fsm.createFile(parts[1]);
                             writer.println("SUCCESS: File '" + parts[1] + "' created.");
@@ -114,7 +118,7 @@ public class FileServer {
                 }
             }
         }
-        // Modularity
+        // Modularity section
         private static boolean isNameValid(String name){
             boolean flag = true;
             if(name.length() > 11){
