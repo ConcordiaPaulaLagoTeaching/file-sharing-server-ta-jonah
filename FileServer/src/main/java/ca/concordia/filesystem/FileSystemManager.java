@@ -22,7 +22,6 @@ public class FileSystemManager {
     private FNode[] fnodes;                // Array of file nodes
     private boolean[] freeBlockList;       // Tracks free blocks
     private byte[][] blocks;               // Simulated block storage
-
     /**
      * @param filename
      * @param totalSize
@@ -36,6 +35,7 @@ public class FileSystemManager {
                 fnodes = new FNode[MAXBLOCKS];
                 freeBlockList = new boolean[MAXBLOCKS];
                 blocks = new byte[MAXBLOCKS][BLOCK_SIZE];
+                loadSystemState();
 
                 for (int i = 0; i < MAXFILES; i++) {
                     inodeTable[i] = new FEntry("", (short) 0, (short) -1); // changed and added placeholder values
@@ -241,8 +241,43 @@ public class FileSystemManager {
             for (boolean freeBlock : freeBlockList) {
                 fileData.writeBoolean(freeBlock);
             }
+
+            fileData.close();
+
         } finally {
             globalLock.writeLock().unlock();
         }
+    }
+
+    public void loadSystemState() throws Exception {
+        File systemMeta = new File("system.meta");
+        if (!systemMeta.exists()) {
+            System.out.println("No previous system data found, starting fresh");
+            return;
+        }
+
+        DataInputStream fileData = new DataInputStream(new FileInputStream("system.meta"));
+        int inodeCount = fileData.readInt();
+        for (int i = 0; i < inodeCount; i++) {
+            String filename = fileData.readUTF();
+            short filesize = fileData.readShort();
+            short firstBlock = fileData.readShort();
+            inodeTable[i] = new FEntry(filename, filesize, firstBlock);
+        }
+
+        int fnodeCount = fileData.readInt();
+        for (int i = 0; i < fnodeCount; i++) {
+            int blockIndex = fileData.readInt();
+            fnodes[i].setBlockIndex(blockIndex);
+            int nextBlock = fileData.readInt();
+            fnodes[i].setNext(nextBlock);
+        }
+
+        int freeBlockCount = fileData.readInt();
+        for (int i = 0; i < freeBlockCount; i++) {
+            freeBlockList[i] = fileData.readBoolean();
+        }
+
+        fileData.close();
     }
 }
