@@ -6,6 +6,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
+import java.util.List;
 
 public class FileServer {
 
@@ -64,6 +66,36 @@ public class FileServer {
                             writer.flush();
                             break;
                         //TODO: Implement other commands READ, WRITE, DELETE, LIST
+                        case "WRITE": {
+                            String filename = parts[1];
+                            if(!isNameValid(filename)){
+                                break;
+                            }
+                            String content = parts[2];
+                            byte[] data = content.getBytes();
+                            fsm.writeFile(filename,data);
+                            System.out.println("Wrote " + data.length + " bytes");
+                        }
+                        case "READ": {
+                            String filename = parts[1];
+                            if(!isNameValid(filename)){
+                                break;
+                            }
+                            byte[] data = fsm.readFile(filename);
+                            String filetext = new String(data);
+                            System.out.println("File Contents: " + filetext);
+                        }
+                        case "DELETE": {
+                            String filename = parts[1];
+                            if(!isNameValid(filename)){
+                                break;
+                            }
+                            fsm.deleteFile(filename);
+                            System.out.println("File " + filename + " successfully deleted");
+                        }
+                        case "LIST": {
+                            List<String> names = Arrays.asList(fsm.listFiles());
+                        }
                         case "QUIT":
                             writer.println("SUCCESS: Disconnecting.");
                             return;
@@ -81,6 +113,15 @@ public class FileServer {
                     // Ignore
                 }
             }
+        }
+        // Modularity
+        private static boolean isNameValid(String name){
+            boolean flag = true;
+            if(name.length() > 11){
+                System.out.println("Name of file should be less than 11 characters");
+                flag = false;
+            }
+            return flag;
         }
     }
 
