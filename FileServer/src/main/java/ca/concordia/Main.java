@@ -1,7 +1,6 @@
 package ca.concordia;
 
 import ca.concordia.server.FileServer;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 

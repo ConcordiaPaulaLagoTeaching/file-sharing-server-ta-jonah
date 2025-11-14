@@ -18,7 +18,10 @@ public class ClientRunnable implements Runnable {
             System.out.println("Connected to the server at localhost:12345");
 
             //read user input from console
-            String userInput = scanner.nextLine();
+//            String userInput = scanner.nextLine();
+            String userInput = "create nice" + Thread.currentThread().getId();
+            System.out.println("[" + Thread.currentThread().getId() + "] Client started");
+
             try (
                     BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                     PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)

@@ -28,36 +28,43 @@ public class ClientServerHandler implements Runnable{
                 System.out.println("Received from client: " + line);
                 String[] parts = line.split(" ");
                 String command = parts[0].toUpperCase();
-
+                int status;
                 switch (command) {
                     case "CREATE":
-                        fsManager.createFile(parts[1]);
-                        writer.println("SUCCESS: File '" + parts[1] + "' created.");
+                        status = fsManager.createFile(parts[1]);
+                        checkStatus(status, parts, writer);
+                        writer.println("' was created.");
                         writer.flush();
                         break;
                     case "READ":
                         String readString = fsManager.readFile(parts[1]);
-                        writer.println("SUCCESS: File '" + parts[1] + "' contains : " + readString);
+                        status = readString == null ? fsManager.FILEISEMPTY : readString.equals(String.valueOf(fsManager.FILENOTFOUND)) ? fsManager.FILENOTFOUND : fsManager.SUCCESS;
+                        checkStatus(status, parts, writer);
+                        writer.println("' contains : " + readString);
                         writer.flush();
                         break;
                     case "WRITE":
                         String writenLine = line.replace(parts[0] + " " + parts[1] + " ", "");
-                        fsManager.writeFile(parts[1], writenLine);
-                        writer.println("SUCCESS: File '" + parts[1] + "' written to with : " + writenLine);
-                        writer.flush();
+                        status = fsManager.writeFile(parts[1], writenLine);
+                        checkStatus(status, parts, writer);
+                        if (status == fsManager.SUCCESS) {
+                            writer.println("SUCCESS: File '" + parts[1] + "' written to with : " + writenLine);
+                            writer.flush();
+                        }
                         break;
                     case "DELETE":
-                        fsManager.deleteFile(parts[1]);
-                        writer.println("SUCCESS: File '" + parts[1] + "' was deleted.");
-                        writer.flush();
+                        status = fsManager.deleteFile(parts[1]);
+                        checkStatus(status, parts, writer);
+                        if (status == fsManager.SUCCESS) {
+                            writer.println("SUCCESS: File '" + parts[1] + "' was deleted.");
+                            writer.flush();
+                        }
                         break;
                     case "LIST":
                         String list = fsManager.list();
                         writer.println("SUCCESS: files listed! these are: " + list);
                         writer.flush();
                         break;
-                    //TODO: Implement other commands READ, WRITE, DELETE, LIST
-
                     case "QUIT":
                         writer.println("SUCCESS: Disconnecting.");
                         return;
@@ -75,5 +82,27 @@ public class ClientServerHandler implements Runnable{
                 // Ignore
             }
         }
+    }
+
+    private void checkStatus(int status, String[] parts, PrintWriter writer) {
+        if(status == fsManager.FILENAMETOOLONG){
+            writer.println("ERROR: File '" + parts[1] + "' has more than 11 characters.");
+        }
+        else if(status == fsManager.DISKFULL){
+            writer.println("ERROR: Disk is full.");
+        }
+        else if(status == fsManager.FILESPACEFULL){
+            writer.println("ERROR: Disk already has " + fsManager.MAXFILES + " files.");
+        }
+        else if(status == fsManager.FILEISEMPTY){
+            writer.println("SUCCESS: File '" + parts[1] + "' is empty");
+        }
+        else if(status == fsManager.FILENOTFOUND){
+            writer.println("ERROR: File '" + parts[1] + "' not found");
+        }
+        else {
+            writer.print("SUCCESS: File '" + parts[1]);
+        }
+        writer.flush();
     }
 }
