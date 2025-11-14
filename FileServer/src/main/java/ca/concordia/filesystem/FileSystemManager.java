@@ -3,7 +3,7 @@ package ca.concordia.filesystem;
 import ca.concordia.filesystem.datastructures.FEntry;
 import ca.concordia.filesystem.datastructures.FNode;
 
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -39,7 +39,6 @@ public class FileSystemManager {
 
                 for (int i = 0; i < MAXFILES; i++) {
                     inodeTable[i] = new FEntry("", (short) 0, (short) -1); // changed and added placeholder values
-
                 }
 
                 for (int i = 0; i < MAXBLOCKS; i++) {
@@ -57,11 +56,11 @@ public class FileSystemManager {
     }
 
     public static synchronized FileSystemManager getInstance(String filename, int totalSize) {
-    if (instance == null) {
-        instance = new FileSystemManager(filename, totalSize);
+        if (instance == null) {
+            instance = new FileSystemManager(filename, totalSize);
+        }
+        return instance;
     }
-    return instance;
-}
 
     // CREATE operation
     public void createFile(String fileName) throws Exception {
@@ -83,7 +82,7 @@ public class FileSystemManager {
                     return;
                 }
             }
-
+            saveSystemState();
             throw new Exception("ERROR: no space for new file");
         } finally {
             globalLock.writeLock().unlock();
@@ -113,6 +112,7 @@ public class FileSystemManager {
                     return;
                 }
             }
+            saveSystemState();
             throw new Exception("ERROR: file " + fileName + " does not exist");
         } finally {
             globalLock.writeLock().unlock();
@@ -171,6 +171,7 @@ public class FileSystemManager {
                     fnodes[nodeIndex].setNext(-1);
                 }
             }
+            saveSystemState();
         } finally {
             globalLock.writeLock().unlock();
         }
@@ -216,6 +217,32 @@ public class FileSystemManager {
             return files.toArray(new String[0]);
         } finally {
             globalLock.readLock().unlock();
+        }
+    }
+
+    public void saveSystemState() throws Exception {
+        globalLock.writeLock().lock();
+        try {
+            DataOutputStream fileData = new DataOutputStream(new FileOutputStream("system.meta"));
+            fileData.writeInt(inodeTable.length);
+            for (FEntry entry : inodeTable) {
+                fileData.writeUTF(entry.getFilename());
+                fileData.writeShort(entry.getFilesize());
+                fileData.writeShort(entry.getFirstBlock());
+            }
+
+            fileData.writeInt(fnodes.length);
+            for (FNode node : fnodes) {
+                fileData.writeInt(node.getBlockIndex());
+                fileData.writeInt(node.getNext());
+            }
+
+            fileData.writeInt(freeBlockList.length);
+            for (boolean freeBlock : freeBlockList) {
+                fileData.writeBoolean(freeBlock);
+            }
+        } finally {
+            globalLock.writeLock().unlock();
         }
     }
 }
