@@ -6,6 +6,7 @@ import ca.concordia.filesystem.datastructures.FNode;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.RandomAccess;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileSystemManager {
@@ -35,7 +36,7 @@ public class FileSystemManager {
                 fnodes = new FNode[MAXBLOCKS];
                 freeBlockList = new boolean[MAXBLOCKS];
                 blocks = new byte[MAXBLOCKS][BLOCK_SIZE];
-                loadSystemState();
+                loadFromDisk();
 
                 for (int i = 0; i < MAXFILES; i++) {
                     inodeTable[i] = new FEntry("", (short) 0, (short) -1); // changed and added placeholder values
@@ -82,7 +83,7 @@ public class FileSystemManager {
                     return;
                 }
             }
-            saveSystemState();
+            saveToDisk();
             throw new Exception("ERROR: no space for new file");
         } finally {
             globalLock.writeLock().unlock();
@@ -112,7 +113,7 @@ public class FileSystemManager {
                     return;
                 }
             }
-            saveSystemState();
+            saveToDisk();
             throw new Exception("ERROR: file " + fileName + " does not exist");
         } finally {
             globalLock.writeLock().unlock();
@@ -171,7 +172,7 @@ public class FileSystemManager {
                     fnodes[nodeIndex].setNext(-1);
                 }
             }
-            saveSystemState();
+            saveToDisk();
         } finally {
             globalLock.writeLock().unlock();
         }
@@ -220,66 +221,61 @@ public class FileSystemManager {
         }
     }
 
-    public void saveSystemState() throws Exception {
+    public void saveToDisk() throws Exception {
         globalLock.writeLock().lock();
         try {
-            DataOutputStream fileData = new DataOutputStream(new FileOutputStream("system.meta"));
-            fileData.writeInt(inodeTable.length);
+            disk.seek(0);
+
+            disk.writeInt(inodeTable.length);
             for (FEntry entry : inodeTable) {
-                fileData.writeUTF(entry.getFilename());
-                fileData.writeShort(entry.getFilesize());
-                fileData.writeShort(entry.getFirstBlock());
+                disk.writeUTF(entry.getFilename());
+                disk.writeShort(entry.getFilesize());
+                disk.writeShort(entry.getFirstBlock());
             }
 
-            fileData.writeInt(fnodes.length);
+            disk.writeInt(fnodes.length);
             for (FNode node : fnodes) {
-                fileData.writeInt(node.getBlockIndex());
-                fileData.writeInt(node.getNext());
+                disk.writeInt(node.getBlockIndex());
+                disk.writeInt(node.getNext());
             }
 
-            fileData.writeInt(freeBlockList.length);
+            disk.writeInt(freeBlockList.length);
             for (boolean freeBlock : freeBlockList) {
-                fileData.writeBoolean(freeBlock);
+                disk.writeBoolean(freeBlock);
             }
-
-            fileData.close();
-            System.out.println("System data saved successfully");
 
         } finally {
+            System.out.println("System data saved successfully");
             globalLock.writeLock().unlock();
         }
     }
 
-    public void loadSystemState() throws Exception {
-        File systemMeta = new File("system.meta");
-        if (!systemMeta.exists()) {
-            System.out.println("No previous system state data found, starting fresh");
-            return;
-        }
-
-        DataInputStream fileData = new DataInputStream(new FileInputStream("system.meta"));
-        int inodeCount = fileData.readInt();
+    public void loadFromDisk() throws Exception {
+        disk.seek(0);
+        
+        int inodeCount = disk.readInt();
         for (int i = 0; i < inodeCount; i++) {
-            String filename = fileData.readUTF();
-            short filesize = fileData.readShort();
-            short firstBlock = fileData.readShort();
+            String filename = disk.readUTF();
+            short filesize = disk.readShort();
+            short firstBlock = disk.readShort();
             inodeTable[i] = new FEntry(filename, filesize, firstBlock);
         }
 
-        int fnodeCount = fileData.readInt();
+        int fnodeCount = disk.readInt();
         for (int i = 0; i < fnodeCount; i++) {
-            int blockIndex = fileData.readInt();
+            int blockIndex = disk.readInt();
             fnodes[i].setBlockIndex(blockIndex);
-            int nextBlock = fileData.readInt();
+            int nextBlock = disk.readInt();
             fnodes[i].setNext(nextBlock);
         }
 
-        int freeBlockCount = fileData.readInt();
+        int freeBlockCount = disk.readInt();
         for (int i = 0; i < freeBlockCount; i++) {
-            freeBlockList[i] = fileData.readBoolean();
+            freeBlockList[i] = disk.readBoolean();
         }
 
-        fileData.close();
+
+
         System.out.println("System data loaded successfully");
     }
 }
