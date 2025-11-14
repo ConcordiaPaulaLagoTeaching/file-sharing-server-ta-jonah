@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.io.RandomAccessFile;
 import java.util.concurrent.locks.ReentrantLock;
 import java.io.IOException;
+import java.util.Arrays;
+
 
 public class FileSystemManager {
 
@@ -29,12 +31,20 @@ public class FileSystemManager {
     public FileSystemManager(String filename, int totalSize) throws IOException {
         // Initialize the file system manager with a file
         disk = new RandomAccessFile(filename, "rw");
-        disk.setLength(totalSize);
+        if (disk.length() == 0) {
+            disk.setLength(totalSize);
+        }
+
+
         //Initialize blocks and free list
         for (int i = 0; i < MAXBLOCKS; i++) {
             blockTable[i] = new FNode(i);
-            freeBlockList[i] = true;
         }
+
+        loadInodeTable();
+        loadFNodeTable();
+        rebuildFreeBlockList();
+
         System.out.println("File system initialized:" + totalSize + "bytes");
     }
 
@@ -44,6 +54,52 @@ public class FileSystemManager {
         }
         return instance;
     }
+
+    // ------------------------- LOAD METADATA -------------------------------
+
+    private void loadInodeTable() throws IOException {
+        for (int i = 0; i < MAXFILES; i++) {
+            long offset = i * FENTRY_SIZE;
+            disk.seek(offset);
+
+            byte[] nameBuf = new byte[11];
+            disk.read(nameBuf);
+            String name = new String(nameBuf, StandardCharsets.US_ASCII).trim();
+
+            short size = disk.readShort();
+            short firstBlock = disk.readShort();
+
+            if (!name.isEmpty()) {
+                inodeTable[i] = new FEntry(name, size, firstBlock);
+            }
+        }
+    }
+
+    private void loadFNodeTable() throws IOException {
+        for (int i = 0; i < MAXBLOCKS; i++) {
+            long offset = DATA_START + (long) i * BLOCK_SIZE;
+            blockTable[i].setNext(-1); // default until WRITE updates chain
+        }
+    }
+
+    private void rebuildFreeBlockList() {
+        Arrays.fill(freeBlockList, true);
+
+        for (FEntry e : inodeTable) {
+            if (e != null && e.getFirstBlock() != -1) {
+
+                int blk = e.getFirstBlock();
+
+                while (blk != -1) {
+                    freeBlockList[blk] = false;
+                    blk = blockTable[blk].getNext();
+                }
+            }
+        }
+    }
+
+    //-----Helpers-----------
+
 
     //Find an existing file entry by name
     private FEntry findEntry(String name) {
@@ -79,6 +135,47 @@ public class FileSystemManager {
     private long dataOffset (int blockIndex) {
         return DATA_START + (long)blockIndex*BLOCK_SIZE;
     }
+
+    //Count how many block are free
+    private int countFreeBlocks() {
+        int count = 0;
+        for (boolean b : freeBlockList) {
+            if (b) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    //Find the index of existing Fentry
+    private int findEntryIndex(String name) {
+        for (int i = 0; i < MAXFILES; i++) {
+            if (inodeTable[i] != null && inodeTable[i].getFilename().equals(name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    //Clear block for overwrite
+    private void clearBlocks(short firstBlock) throws IOException {
+        int current = firstBlock;
+        while (current != -1) {
+            freeBlockList[current] = true;
+            int next = blockTable[current].getNext();
+            blockTable[current].setNext(-1);
+
+            // optional: blank the data on disk
+            disk.seek(dataOffset(current));
+            disk.write(new byte[BLOCK_SIZE]);
+
+            current = next;
+        }
+    }
+
+
+    //Fentry serialization
+
 
 //    //for delete or overwrite
 //    private void clearBlocks(int firstBlock) {
@@ -146,7 +243,6 @@ public class FileSystemManager {
                 throw new Exception("ERROR: file " + fileName + " already exists");
             }
 
-            // 3) find a free inode slot
             int freeIndex = findFreeInodeIndex();
             if (freeIndex == -1) {
                 throw new Exception("ERROR: maximum number of files reached");
@@ -155,17 +251,125 @@ public class FileSystemManager {
             FEntry entry = new FEntry(fileName, (short) 0, (short) -1);
             inodeTable[freeIndex] = entry;
 
-            // NEW: write this FEntry into the filesystem file, like your friend does with seek+write
             writeFEntryToDisk(freeIndex);
 
             System.out.println("Created file: " + fileName + " at inode index " + freeIndex);
 
-        }
-        finally{
+        } finally {
             globalLock.unlock();
         }
     }
 
+    public void writeFile(String filename, String content) throws Exception {
+        globalLock.lock();
+        try {
+            FEntry file = findEntry(filename);
+            if (file == null)
+                throw new Exception("ERROR: file " + filename + " does not exist");
 
-        // TODO: Add readFile, writeFile and other required methods,
+            // STEP 1 — clear old blocks (if any)
+            if (file.getFirstBlock() != -1) {
+                clearBlocks(file.getFirstBlock());
+            }
+
+            // STEP 2 — calculate blocks needed
+            byte[] data = content.getBytes(StandardCharsets.US_ASCII);
+            int totalBytes = data.length;
+            int blocksNeeded = (int) Math.ceil((double) totalBytes / BLOCK_SIZE);
+
+            if (blocksNeeded > countFreeBlocks())
+                throw new Exception("ERROR: file too large (not enough blocks)");
+
+            // STEP 3 — allocate new blocks
+            int firstBlock = -1;
+            int prevBlock = -1;
+            int offset = 0;
+
+            for (int i = 0; i < blocksNeeded; i++) {
+
+                int blk = findFreeBlock();
+                if (blk == -1) throw new Exception("ERROR: no free blocks (should not happen)");
+
+                freeBlockList[blk] = false;
+
+                long diskOffset = dataOffset(blk);
+                disk.seek(diskOffset);
+
+                int chunk = Math.min(BLOCK_SIZE, totalBytes - offset);
+                disk.write(data, offset, chunk);
+                offset += chunk;
+
+                // link FNODE chain in memory
+                if (prevBlock != -1)
+                    blockTable[prevBlock].setNext(blk);
+
+                if (i == 0)
+                    firstBlock = blk;
+
+                prevBlock = blk;
+            }
+
+            // mark last block end
+            if (prevBlock != -1) {
+                blockTable[prevBlock].setNext(-1);
+            }
+
+            // STEP 4 — update FEntry metadata in RAM
+            file.setFilesize((short) totalBytes);
+            file.setFirstBlock((short) firstBlock);
+
+            // STEP 5 — write FEntry back to disk
+            int idx = findEntryIndex(filename);
+            if (idx != -1) {
+                writeFEntryToDisk(idx);
+            }
+
+        } finally {
+            globalLock.unlock();
+        }
+        //System.out.println("Content bytes = " + totalBytes + " / Free blocks = " + countFreeBlocks());
     }
+
+    //ReadFile
+    public String readFile(String filename) throws Exception {
+        globalLock.lock();
+        try {
+            FEntry file = findEntry(filename);
+            if (file == null)
+                throw new Exception("ERROR: file " + filename + " does not exist");
+
+            if (file.getFirstBlock() == -1)
+                return "";   // empty file
+
+            int current = file.getFirstBlock();
+            int remaining = file.getFilesize();
+            byte[] buffer = new byte[remaining];
+            int offset = 0;
+
+            while (current != -1 && remaining > 0) {
+
+                long diskOffset = dataOffset(current);
+                disk.seek(diskOffset);
+
+                int chunk = Math.min(remaining, BLOCK_SIZE);
+
+                disk.readFully(buffer, offset, chunk);
+
+                offset += chunk;
+                remaining -= chunk;
+
+                current = blockTable[current].getNext();
+            }
+
+            return new String(buffer, StandardCharsets.US_ASCII);
+
+        } finally {
+            globalLock.unlock();
+        }
+    }
+}
+
+
+
+
+// TODO: Add readFile, writeFile and other required methods,
