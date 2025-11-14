@@ -1,4 +1,5 @@
-package ca.concordia.server;
+package ca.concordia.server; // Server package
+
 import ca.concordia.filesystem.FileSystemManager;
 
 import java.io.BufferedReader;
@@ -9,61 +10,166 @@ import java.net.Socket;
 
 public class FileServer {
 
-    private FileSystemManager fsManager;
-    private int port;
+    private final FileSystemManager fsManager;  // Shared filesystem manager
+    private final int port;     // Server port
+
     public FileServer(int port, String fileSystemName, int totalSize) throws Exception {
-        // Initialize the FileSystemManager
-        FileSystemManager fsManager = new FileSystemManager(fileSystemName, 10*128 );
-        this.fsManager = fsManager;
-        this.port = port;
+        this.port = port; // Save port
+        this.fsManager = new FileSystemManager(fileSystemName, totalSize); // Initialize fs
     }
 
-    public void start(){
-        try (ServerSocket serverSocket = new ServerSocket(12345)) {
-            System.out.println("Server started. Listening on port 12345...");
+    public void start() {
+        // Create listening socket
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            System.out.println("Server started. Listening on port " + port + "...");
 
+            // Accept clients forever
             while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.println("Handling client: " + clientSocket);
-                try (
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                        PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)
-                ) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        System.out.println("Received from client: " + line);
-                        String[] parts = line.split(" ");
-                        String command = parts[0].toUpperCase();
-
-                        switch (command) {
-                            case "CREATE":
-                                fsManager.createFile(parts[1]);
-                                writer.println("SUCCESS: File '" + parts[1] + "' created.");
-                                writer.flush();
-                                break;
-                            //TODO: Implement other commands READ, WRITE, DELETE, LIST
-                            case "QUIT":
-                                writer.println("SUCCESS: Disconnecting.");
-                                return;
-                            default:
-                                writer.println("ERROR: Unknown command.");
-                                break;
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-                    try {
-                        clientSocket.close();
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                }
+                Socket clientSocket = serverSocket.accept();    // Block until client connects
+                System.out.println("New client connected: " + clientSocket);
+                new Thread(new ClientHandler(clientSocket)).start();    // Start worker thread
             }
+
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("Could not start server on port " + port);
         }
     }
 
+    // Worker thread class
+    private class ClientHandler implements Runnable {
+
+        private final Socket clientSocket; // Client connection
+
+        ClientHandler(Socket socket) {
+            this.clientSocket = socket; // Store client socket
+        }
+
+        @Override
+        public void run() {
+            try (
+                    // Read client input
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                    // Send responses
+                    PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)
+            ) {
+
+                String line; // Holds client command
+                while ((line = reader.readLine()) != null) { // Read until disconnect
+
+                    line = line.trim(); // Remove extra spaces
+                    if (line.isEmpty()) continue; // Skip empty commands
+
+                    System.out.println("Received from " + clientSocket + ": " + line); // Log
+
+                    String[] parts = line.split(" ", 3); // Split into at most 3 parts
+                    String command = parts[0].toUpperCase(); // Get command keyword
+
+                    try {
+                        switch (command) {
+                            // CREATE command
+                            case "CREATE": {
+                                if (parts.length < 2) { writer.println("ERROR: CREATE requires a filename."); break; }
+                                String filename = parts[1]; // Extract filename
+                                if (filename.length() > 11) { writer.println("ERROR: filename too large"); break; }
+
+                                synchronized (fsManager) { fsManager.createFile(filename); } // Create file safely
+                                writer.println("SUCCESS: File '" + filename + "' created.");
+                                break;
+                            }
+
+                            // WRITE command
+                            case "WRITE": {
+                                if (parts.length < 2) { writer.println("ERROR: WRITE requires a filename."); break; }
+                                String filename = parts[1]; // Filename
+                                if (filename.length() > 11) { writer.println("ERROR: filename too large"); break; }
+
+                                String content = (parts.length == 3) ? parts[2] : ""; // Extract content
+                                byte[] data = content.getBytes(); // Convert to bytes
+
+                                try {
+                                    synchronized (fsManager) { fsManager.writeFile(filename, data); } // Write safely
+                                    writer.println("SUCCESS: Wrote " + data.length + " bytes to '" + filename + "'.");
+                                } catch (Exception e) {
+                                    String msg = e.getMessage().toLowerCase(); // Normalize error text
+                                    if (msg.contains("not found")) writer.println("ERROR: file " + filename + " does not exist");
+                                    else if (msg.contains("space")) writer.println("ERROR: file too large");
+                                    else writer.println("ERROR: " + e.getMessage());
+                                }
+                                break;
+                            }
+
+                            // READ command
+                            case "READ": {
+                                if (parts.length < 2) { writer.println("ERROR: READ requires a filename."); break; }
+                                String filename = parts[1];
+                                if (filename.length() > 11) { writer.println("ERROR: filename too large"); break; }
+
+                                try {
+                                    byte[] data;
+                                    synchronized (fsManager) { data = fsManager.readFile(filename); } // Read safely
+
+                                    writer.println("SUCCESS:"); // Start output block
+                                    writer.println(new String(data)); // File contents
+                                    writer.println("END"); // End block
+                                } catch (Exception e) {
+                                    String msg = e.getMessage().toLowerCase(); // Normalize
+                                    if (msg.contains("not found")) writer.println("ERROR: file " + filename + " does not exist");
+                                    else writer.println("ERROR: " + e.getMessage());
+                                }
+                                break;
+                            }
+
+                            // DELETE command
+                            case "DELETE": {
+                                if (parts.length < 2) { writer.println("ERROR: DELETE requires a filename."); break; }
+                                String filename = parts[1];
+                                if (filename.length() > 11) { writer.println("ERROR: filename too large"); break; }
+
+                                try {
+                                    synchronized (fsManager) { fsManager.deleteFile(filename); } // Delete safely
+                                    writer.println("SUCCESS: File '" + filename + "' deleted.");
+                                } catch (Exception e) {
+                                    String msg = e.getMessage().toLowerCase(); // Normalize
+                                    if (msg.contains("not found")) writer.println("ERROR: file " + filename + " does not exist");
+                                    else writer.println("ERROR: " + e.getMessage());
+                                }
+                                break;
+                            }
+
+                            // LIST command
+                            case "LIST": {
+                                try {
+                                    String[] names;
+                                    synchronized (fsManager) { names = fsManager.listFiles(); } // Fetch safely
+
+                                    writer.println("SUCCESS:"); // Begin list
+                                    for (String n : names) writer.println(n); // Print each filename
+                                    writer.println("END"); // End block
+                                } catch (Exception e) {
+                                    writer.println("ERROR: " + e.getMessage());
+                                }
+                                break;
+                            }
+
+                            // QUIT command
+                            case "QUIT": {
+                                writer.println("SUCCESS: Disconnecting.");
+                                return;
+                            }
+                            default: writer.println("ERROR: Unknown command.");
+                        }
+
+                    } catch (Exception e) {
+                        writer.println("ERROR: " + e.getMessage()); // Fallback error
+                    }
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace(); // Print I/O errors
+            } finally {
+                try { clientSocket.close(); } catch (Exception ignored) {} // Close socket
+            }
+        }
+    }
 }
