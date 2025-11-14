@@ -243,6 +243,7 @@ public class FileSystemManager {
             }
 
             fileData.close();
+            System.out.println("System data saved successfully");
 
         } finally {
             globalLock.writeLock().unlock();
@@ -252,7 +253,7 @@ public class FileSystemManager {
     public void loadSystemState() throws Exception {
         File systemMeta = new File("system.meta");
         if (!systemMeta.exists()) {
-            System.out.println("No previous system data found, starting fresh");
+            System.out.println("No previous system state data found, starting fresh");
             return;
         }
 
@@ -279,5 +280,6 @@ public class FileSystemManager {
         }
 
         fileData.close();
+        System.out.println("System data loaded successfully");
     }
 }
