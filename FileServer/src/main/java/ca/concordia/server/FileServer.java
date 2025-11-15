@@ -26,6 +26,11 @@ public class FileServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Handling client: " + clientSocket);
 
+                // Multithreading implementation
+                // Each client is handled in its own thread
+                Thread t = new Thread(new ClientHandler(clientSocket,fsManager));
+                t.start ();
+
                 try (
                         BufferedReader reader = new BufferedReader(
                                 new InputStreamReader(clientSocket.getInputStream()));
