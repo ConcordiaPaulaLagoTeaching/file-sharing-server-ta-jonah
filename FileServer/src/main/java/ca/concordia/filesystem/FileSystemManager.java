@@ -367,7 +367,35 @@ public class FileSystemManager {
             globalLock.unlock();
         }
     }
+
+    public void deleteFile(String filename) throws Exception {
+        globalLock.lock();
+        try {
+            int idx = findEntryIndex(filename);
+            if (idx == -1){
+                throw new Exception("ERROR: file " + filename + " does not exist");
+            }
+
+            FEntry file = inodeTable[idx];
+
+            // Clear its block if any exist
+            if (file.getFirstBlock() != -1){
+                clearBlocks(file.getFirstBlock());
+            }
+
+            // Remove from inode table (in memory)
+            inodeTable[idx] = null;
+            writeFEntryToDisk(idx);
+
+            System.out.println("Deleted file: " + filename + " at inode index " + idx);
+        } finally {
+            globalLock.unlock();
+        }
+    }
+
+
 }
+
 
 
 

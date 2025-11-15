@@ -97,6 +97,19 @@ public class FileServer {
                                     }
                                     break;
 
+                                case "DELETE":
+                                    if (parts.length < 2) {
+                                        writer.println("ERROR: DELETE requires a filename");
+                                        break;
+                                    }
+                                    try {
+                                        fsManager.deleteFile(parts[1]);
+                                        writer.println("SUCCESS: File '" + parts[1] + "' deleted.");
+                                    } catch (Exception ex) {
+                                        writer.println("ERROR: " + ex.getMessage());
+                                    }
+                                    break;
+
 
                                 case "QUIT":
                                     writer.println("SUCCESS: Disconnecting.");
