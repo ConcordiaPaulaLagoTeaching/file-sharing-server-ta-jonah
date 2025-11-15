@@ -1,12 +1,14 @@
 package ca.concordia.filesystem;
 
 import ca.concordia.filesystem.datastructures.FEntry;
+import ca.concordia.filesystem.datastructures.FNode;
 
 import java.io.RandomAccessFile;
-import java.util.concurrent.locks.ReentrantLock;
-import ca.concordia.filesystem.datastructures.FNode;
 import java.io.IOException;
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileSystemManager {
 
@@ -14,13 +16,13 @@ public class FileSystemManager {
     private int MAXBLOCKS = 10;
     private static FileSystemManager instance = null;
     private RandomAccessFile disk = null;
-    private final ReentrantLock globalLock = new ReentrantLock();
+    private final FileChannel channel;
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private static final int BLOCK_SIZE = 128; // Example block size
 
     private FEntry[] inodeTable; // Array of inodes
     private FNode[] fnodes;
-    private boolean[] freeBlockList; // Bitmap for free blocks
 
     public FileSystemManager(String filename, int totalSize) throws Exception {
         // Prevent multiple initializations
@@ -35,6 +37,8 @@ public class FileSystemManager {
         if (this.disk.length() < totalSize) {
             this.disk.setLength(totalSize);
         }
+
+        this.channel = this.disk.getChannel();
 
         // Initialize constants
         this.MAXFILES = 5;     // you can change later if you want
@@ -57,10 +61,9 @@ public class FileSystemManager {
         System.out.println("FileSystemManager initialized successfully.");
     }
 
-
     // createFile Implementation
     public void createFile(String filename) throws Exception {
-        globalLock.lock();
+        rwLock.writeLock().lock();
         try {
             // Validate the filename
             if (filename == null || filename.isEmpty()) {
@@ -101,13 +104,13 @@ public class FileSystemManager {
 
             System.out.println("SUCCESS: file created -> " + filename);
         } finally {
-            globalLock.unlock();
+            rwLock.writeLock().unlock();
         }
     }
 
     // deleteFile Implementation
     public void deleteFile(String filename) throws Exception {
-        globalLock.lock();
+        rwLock.writeLock().lock();
         try {
             // Validate filename
             if (filename == null || filename.isEmpty()) {
@@ -138,11 +141,9 @@ public class FileSystemManager {
 
                 int blockIdx = node.getBlockIndex();
                 if (blockIdx >= 0) {
-                    // Overwrite data with zeroes for security
                     long dataOffset = calculateDataOffset(blockIdx);
-                    disk.seek(dataOffset);
-                    byte[] zeroes = new byte[BLOCK_SIZE];
-                    disk.write(zeroes);
+                    ByteBuffer zeroes = ByteBuffer.allocate(BLOCK_SIZE);
+                    channel.write(zeroes, dataOffset);
                 }
 
                 // Mark node as unused
@@ -160,13 +161,13 @@ public class FileSystemManager {
 
             System.out.println("SUCCESS: file deleted -> " + filename);
         } finally {
-            globalLock.unlock();
+            rwLock.writeLock().unlock();
         }
     }
 
     // writeFile Implementation
     public void writeFile(String filename, byte[] contents) throws Exception {
-        globalLock.lock();
+        rwLock.writeLock().lock();
         try {
             // Validate filename
             if (filename == null || filename.isEmpty()) {
@@ -225,18 +226,13 @@ public class FileSystemManager {
                 int end = Math.min(start + BLOCK_SIZE, contents.length);
                 byte[] chunk = java.util.Arrays.copyOfRange(contents, start, end);
 
-                // Write chunk to correct disk position
                 long dataOffset = calculateDataOffset(nodeIndex);
-                disk.seek(dataOffset);
-                disk.write(chunk);
 
-                // Fill rest of block with zeros if needed
-                if (chunk.length < BLOCK_SIZE) {
-                    byte[] padding = new byte[BLOCK_SIZE - chunk.length];
-                    disk.write(padding);
-                }
+                ByteBuffer buf = ByteBuffer.allocate(BLOCK_SIZE);
+                buf.put(chunk);
+                buf.flip();
+                channel.write(buf, dataOffset);
 
-                // Update FNode
                 fnodes[nodeIndex].setBlockIndex(nodeIndex);
                 if (i < allocatedNodes.size() - 1) {
                     fnodes[nodeIndex].setNext(allocatedNodes.get(i + 1));
@@ -255,13 +251,13 @@ public class FileSystemManager {
             System.out.println("SUCCESS: file written -> " + filename + " (" + contents.length + " bytes)");
 
         } finally {
-            globalLock.unlock();
+            rwLock.writeLock().unlock();
         }
     }
 
     // readFile Implementation
     public byte[] readFile(String filename) throws Exception {
-        globalLock.lock();
+        rwLock.readLock().lock();
         try {
             // Validate filename
             if (filename == null || filename.isEmpty()) {
@@ -299,14 +295,13 @@ public class FileSystemManager {
                     throw new Exception("ERROR: corrupted fnode chain for " + filename);
                 }
 
-                int blockPos = (MAXFILES * (11 + 2 + 2)) + (MAXBLOCKS * 4) + (node.getBlockIndex() * BLOCK_SIZE);
-                disk.seek(blockPos);
+                long blockPos = calculateDataOffset(node.getBlockIndex());
 
-                // Determine how many bytes to read from this block
                 int bytesToRead = Math.min(BLOCK_SIZE, size - bytesRead);
-                byte[] blockData = new byte[bytesToRead];
-                disk.read(blockData);
-                System.arraycopy(blockData, 0, data, bytesRead, bytesToRead);
+                ByteBuffer buf = ByteBuffer.allocate(bytesToRead);
+                channel.read(buf, blockPos);
+                buf.flip();
+                buf.get(data, bytesRead, bytesToRead);
 
                 bytesRead += bytesToRead;
                 currentNodeIndex = node.getNext();
@@ -315,60 +310,87 @@ public class FileSystemManager {
             System.out.println("SUCCESS: file read -> " + filename + " (" + bytesRead + " bytes)");
             return data;
         } finally {
-            globalLock.unlock();
+            rwLock.readLock().unlock();
         }
     }
 
     // listFiles Implementation
     public String[] listFiles() {
-        java.util.List<String> names = new java.util.ArrayList<>(); // Create a temporary list to store filenames
+        rwLock.readLock().lock();
+        try {
+            java.util.List<String> names = new java.util.ArrayList<>(); // Create a temporary list to store filenames
 
-        // Iterate over all file entries in the inode table
-        for (FEntry entry : inodeTable) {
-            // Check if this entry is valid
-            if (entry != null && entry.getFilename() != null && !entry.getFilename().isEmpty()) {
-                names.add(entry.getFilename()); // Add filename to the list
+            // Iterate over all file entries in the inode table
+            for (FEntry entry : inodeTable) {
+                // Check if this entry is valid
+                if (entry != null && entry.getFilename() != null && !entry.getFilename().isEmpty()) {
+                    names.add(entry.getFilename()); // Add filename to the list
+                }
             }
-        }
 
-        return names.toArray(new String[0]); // Convert the list to a String array and return it
+            return names.toArray(new String[0]); // Convert the list to a String array and return it
+        } finally {
+            rwLock.readLock().unlock();
+        }
     }
 
     // Saves all filesystem metadata to the start of the disk file. (FEntries + FNodes)
     private void persistMetadata() throws IOException {
-        // Move to beginning of the simulated disk file
-        disk.seek(0);
+        rwLock.writeLock().lock();
+        try {
+            long offset = 0;  // <-- NEW: track absolute write position ourselves
 
-        // Write all FEntries
-        for (int i = 0; i < MAXFILES; i++) {
-            FEntry entry = inodeTable[i];
-            byte[] nameBytes = new byte[11]; // fixed-size filename field
+            // Write all FEntries
+            for (int i = 0; i < MAXFILES; i++) {
+                FEntry entry = inodeTable[i];
+                byte[] nameBytes = new byte[11]; // fixed-size filename field
 
-            if (entry != null && entry.getFilename() != null) {
-                byte[] src = entry.getFilename().getBytes("UTF-8");
-                int copyLen = Math.min(src.length, 11);
-                System.arraycopy(src, 0, nameBytes, 0, copyLen);
+                if (entry != null && entry.getFilename() != null) {
+                    byte[] src = entry.getFilename().getBytes("UTF-8");
+                    int copyLen = Math.min(src.length, 11);
+                    System.arraycopy(src, 0, nameBytes, 0, copyLen);
+                }
+
+                // Filename (11 bytes)
+                channel.write(ByteBuffer.wrap(nameBytes), offset);
+                offset += 11;    // <-- NEW instead of seek()
+
+                // File size (2 bytes)
+                short size = (entry != null) ? entry.getFilesize() : 0;
+                ByteBuffer sizeBuf = ByteBuffer.allocate(2);
+                sizeBuf.putShort(size);
+                sizeBuf.flip();
+                channel.write(sizeBuf, offset);
+                offset += 2;     // <-- NEW instead of seek()
+
+                // First block (2 bytes)
+                short firstBlock = (entry != null) ? entry.getFirstBlock() : -1;
+                ByteBuffer fbBuf = ByteBuffer.allocate(2);
+                fbBuf.putShort(firstBlock);
+                fbBuf.flip();
+                channel.write(fbBuf, offset);
+                offset += 2;     // <-- NEW instead of seek()
             }
 
-            disk.write(nameBytes); // 11 bytes
-            short size = (entry != null) ? entry.getFilesize() : 0;
-            short firstBlock = (entry != null) ? entry.getFirstBlock() : -1;
+            // Write all FNodes
+            for (int i = 0; i < MAXBLOCKS; i++) {
+                FNode node = fnodes[i];
+                short blockIndex = (short) ((node != null) ? node.getBlockIndex() : -1);
+                short next = (short) ((node != null) ? node.getNext() : -1);
 
-            disk.writeShort(size);
-            disk.writeShort(firstBlock);
+                ByteBuffer buf = ByteBuffer.allocate(4);
+                buf.putShort(blockIndex);
+                buf.putShort(next);
+                buf.flip();
+
+                channel.write(buf, offset);
+                offset += 4;     // <-- NEW instead of seek()
+            }
+
+            channel.force(true);
+        } finally {
+            rwLock.writeLock().unlock();
         }
-
-        // Write all FNodes
-        for (int i = 0; i < MAXBLOCKS; i++) {
-            FNode node = fnodes[i];
-            short blockIndex = (short) ((node != null) ? node.getBlockIndex() : -1);
-            short next = (short) ((node != null) ? node.getNext() : -1);
-            disk.writeShort(blockIndex);
-            disk.writeShort(next);
-        }
-
-        // Force all writes to disk
-        disk.getChannel().force(true);
     }
 
     //Calculates where a given data block starts on the disk file.
@@ -377,5 +399,4 @@ public class FileSystemManager {
         int metadataSize = (15 * MAXFILES) + (4 * MAXBLOCKS);
         return metadataSize + ((long) blockIndex * BLOCK_SIZE);
     }
-
 }
