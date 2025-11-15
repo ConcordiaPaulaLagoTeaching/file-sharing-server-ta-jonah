@@ -57,9 +57,6 @@ public class FileServer {
                 String line; // Holds client command
                 while ((line = reader.readLine()) != null) { // Read until disconnect
 
-                    line = line.trim(); // Remove extra spaces
-                    if (line.isEmpty()) continue; // Skip empty commands
-
                     System.out.println("Received from " + clientSocket + ": " + line); // Log
 
                     String[] parts = line.split(" ", 3); // Split into at most 3 parts
@@ -84,7 +81,13 @@ public class FileServer {
                                 String filename = parts[1]; // Filename
                                 if (filename.length() > 11) { writer.println("ERROR: filename too large"); break; }
 
-                                String content = (parts.length == 3) ? parts[2] : ""; // Extract content
+                                // Extract content correctly (support spaces)
+                                int prefixLength = command.length() + 1 + filename.length() + 1;
+                                String content = "";
+                                if (line.length() > prefixLength) {
+                                    content = line.substring(prefixLength);
+                                }
+
                                 byte[] data = content.getBytes(); // Convert to bytes
 
                                 try {
