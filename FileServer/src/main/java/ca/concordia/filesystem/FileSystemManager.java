@@ -393,6 +393,20 @@ public class FileSystemManager {
         }
     }
 
+    public String listFiles(){
+        globalLock.lock();
+        try {
+            StringBuilder sb = new StringBuilder();
+            for(FEntry e : inodeTable){
+                if(e != null){
+                    sb.append(e.getFilename()).append("\n");
+                }
+            }
+            return sb.toString().trim();
+        } finally{
+            globalLock.unlock();
+        }
+    }
 
 }
 

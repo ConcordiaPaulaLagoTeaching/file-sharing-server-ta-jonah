@@ -110,6 +110,19 @@ public class FileServer {
                                     }
                                     break;
 
+                                case "LIST":
+                                    try {
+                                        String listing = fsManager.listFiles();
+                                        if (listing.isEmpty()) {
+                                            writer.println("No files on server.");
+                                        } else {
+                                            writer.println("FILES:");
+                                            writer.println(listing);
+                                        }
+                                    } catch (Exception ex) {
+                                        writer.println("ERROR: " + ex.getMessage());
+                                    }
+                                    break;
 
                                 case "QUIT":
                                     writer.println("SUCCESS: Disconnecting.");
