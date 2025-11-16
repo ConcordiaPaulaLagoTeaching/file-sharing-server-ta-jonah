@@ -274,7 +274,7 @@ public class FileSystemManager {
             System.out.println("Writer started for: " + filename);
 
             // *** TESTING DELAY to simulate long write ***
-            Thread.sleep(5000);   // force writer to hold lock for 3 seconds
+            //Thread.sleep(10000);   // force writer to hold lock for 3 seconds
 
             FEntry file = findEntry(filename);
             if (file == null)

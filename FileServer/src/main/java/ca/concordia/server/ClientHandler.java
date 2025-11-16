@@ -83,13 +83,13 @@ public class ClientHandler implements Runnable {
                                 fsManager.writeFile(filename, content);
                                 writer.println("SUCCESS: File written.");
                             } catch (Exception ex) {
+                                //for concurrent test
                                 if (ex.getMessage().equals("BUSY_WRITING")) {
                                     writer.println("Another user is writing. Retrying in 3 seconds...");
                                     writer.flush();
 
-                                    Thread.sleep(15000); // wait 15 seconds
-
-                                    // try again automatically
+                                    Thread.sleep(15000);
+                                    // try again automatically after delay
                                     fsManager.writeFile(filename, content);
                                     writer.println("SUCCESS: File written after retry.");
                                 } else {
