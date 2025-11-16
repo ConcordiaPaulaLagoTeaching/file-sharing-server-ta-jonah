@@ -24,7 +24,7 @@ public class FileServer {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Handling client: " + clientSocket);
-                new Thread(new ClientServerHandler(fsManager, clientSocket)).start();
+                new Thread(new ClientHandler(clientSocket, fsManager)).start();
             }
         } catch (Exception e) {
             e.printStackTrace();
