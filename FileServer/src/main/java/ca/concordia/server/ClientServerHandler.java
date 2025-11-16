@@ -23,6 +23,7 @@ public class ClientServerHandler implements Runnable{
                 BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true)
         ) {
+            System.out.println("[" + Thread.currentThread().getName() + "] Handling client: " + clientSocket);
             String line;
             while ((line = reader.readLine()) != null) {
                 System.out.println("Received from client: " + line);
@@ -31,32 +32,60 @@ public class ClientServerHandler implements Runnable{
                 int status;
                 switch (command) {
                     case "CREATE":
-                        status = fsManager.createFile(parts[1]);
-                        checkStatus(status, parts, writer);
-                        writer.println("' was created.");
-                        writer.flush();
+                        if (parts.length > 1) {
+                            status = fsManager.createFile(parts[1]);
+                            checkStatus(status, parts, writer);
+                            if (status == fsManager.SUCCESS) {
+                                writer.println("' was created.");
+                                writer.flush();
+                            }
+                        }
+                        else{
+                            writer.println("ERROR: No file name was given");
+                            writer.flush();
+                        }
                         break;
                     case "READ":
-                        String readString = fsManager.readFile(parts[1]);
-                        status = readString == null ? fsManager.FILEISEMPTY : readString.equals(String.valueOf(fsManager.FILENOTFOUND)) ? fsManager.FILENOTFOUND : fsManager.SUCCESS;
-                        checkStatus(status, parts, writer);
-                        writer.println("' contains : " + readString);
-                        writer.flush();
+                        if (parts.length > 1) {
+                            String readString = fsManager.readFile(parts[1]);
+                            status = readString == null ? fsManager.FILEISEMPTY : readString.equals(String.valueOf(fsManager.FILENOTFOUND)) ? fsManager.FILENOTFOUND : fsManager.SUCCESS;
+                            checkStatus(status, parts, writer);
+                            if (status == fsManager.SUCCESS) {
+                                writer.println("' contains : " + readString);
+                                writer.flush();
+                            }
+                        }
+                        else {
+                            writer.println("ERROR: No file name was given");
+                            writer.flush();
+                        }
                         break;
                     case "WRITE":
-                        String writenLine = line.replace(parts[0] + " " + parts[1] + " ", "");
-                        status = fsManager.writeFile(parts[1], writenLine);
-                        checkStatus(status, parts, writer);
-                        if (status == fsManager.SUCCESS) {
-                            writer.println("SUCCESS: File '" + parts[1] + "' written to with : " + writenLine);
+                        if (parts.length > 1) {
+                            String writenLine = line.replace(parts[0] + " " + parts[1] + " ", "");
+                            status = fsManager.writeFile(parts[1], writenLine);
+                            checkStatus(status, parts, writer);
+                            if (status == fsManager.SUCCESS) {
+                                writer.println("'was written to with : " + writenLine);
+                                writer.flush();
+                            }
+                        }
+                        else {
+                            writer.println("ERROR: No file name was given");
                             writer.flush();
                         }
                         break;
                     case "DELETE":
-                        status = fsManager.deleteFile(parts[1]);
-                        checkStatus(status, parts, writer);
-                        if (status == fsManager.SUCCESS) {
-                            writer.println("SUCCESS: File '" + parts[1] + "' was deleted.");
+                        if (parts.length > 1) {
+                            status = fsManager.deleteFile(parts[1]);
+                            checkStatus(status, parts, writer);
+                            if (status == fsManager.SUCCESS) {
+                                writer.println("' was deleted.");
+                                writer.flush();
+                            }
+                        }
+                        else {
+                            writer.println("ERROR: No file name was given");
                             writer.flush();
                         }
                         break;
@@ -85,6 +114,11 @@ public class ClientServerHandler implements Runnable{
     }
 
     private void checkStatus(int status, String[] parts, PrintWriter writer) {
+        if(status == fsManager.SUCCESS) {
+            writer.print("SUCCESS: File '" + parts[1]);
+            writer.flush();
+            return;
+        }
         if(status == fsManager.FILENAMETOOLONG){
             writer.println("ERROR: File '" + parts[1] + "' has more than 11 characters.");
         }
@@ -100,8 +134,8 @@ public class ClientServerHandler implements Runnable{
         else if(status == fsManager.FILENOTFOUND){
             writer.println("ERROR: File '" + parts[1] + "' not found");
         }
-        else {
-            writer.print("SUCCESS: File '" + parts[1]);
+        else if(status == fsManager.FILEALREADYEXISTS){
+            writer.println("ERROR: File '" + parts[1] + "' already exists!");
         }
         writer.flush();
     }

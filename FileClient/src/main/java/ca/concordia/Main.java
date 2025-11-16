@@ -9,8 +9,7 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-        //Socket CLient
-        ClientRunnable[] clientRunnable = new ClientRunnable[4];
+        ClientRunnable[] clientRunnable = new ClientRunnable[5];
         for(int i = 0; i < clientRunnable.length; i++) {
             clientRunnable[i] = new ClientRunnable();
             new Thread(clientRunnable[i]).start();
