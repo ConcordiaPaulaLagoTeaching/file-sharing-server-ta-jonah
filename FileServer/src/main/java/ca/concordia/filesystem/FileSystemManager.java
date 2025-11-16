@@ -8,18 +8,21 @@ import java.io.RandomAccessFile;
 import java.util.concurrent.locks.ReentrantLock;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 
 
 public class FileSystemManager {
 
     private final int MAXFILES = 5;
     private final int MAXBLOCKS = 10;
-    private static final int BLOCK_SIZE = 128; // Example block size
+    private static final int BLOCK_SIZE = 128;
     private final long DATA_START = 115;
-    private static final int FENTRY_SIZE = 15; // 11 (filename) + 2 (size) + 2 (firstBlock)
+    // 11 (filename) + 2 (size) + 2 (firstBlock)
+    private static final int FENTRY_SIZE = 15;
 
     private final RandomAccessFile disk;
-    private final ReentrantLock globalLock = new ReentrantLock();
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock(true);
 
     // offset in the disk file where data block starts
     private static FileSystemManager instance;
@@ -229,7 +232,7 @@ public class FileSystemManager {
     }
 
     public void createFile(String fileName) throws Exception {
-        globalLock.lock();
+        rwLock.writeLock().lock();
         try {
             if(fileName == null || fileName.isEmpty()) {
                 throw new Exception("ERROR: filename cannot be empty");
@@ -256,23 +259,33 @@ public class FileSystemManager {
             System.out.println("Created file: " + fileName + " at inode index " + freeIndex);
 
         } finally {
-            globalLock.unlock();
+            rwLock.writeLock().unlock();
         }
     }
 
     public void writeFile(String filename, String content) throws Exception {
-        globalLock.lock();
+        boolean locked = rwLock.writeLock().tryLock();
+
+        if (!locked) {
+            //Another writer exists
+            throw new Exception("BUSY_WRITING");
+        }
         try {
+            System.out.println("Writer started for: " + filename);
+
+            // *** TESTING DELAY to simulate long write ***
+            Thread.sleep(5000);   // force writer to hold lock for 3 seconds
+
             FEntry file = findEntry(filename);
             if (file == null)
                 throw new Exception("ERROR: file " + filename + " does not exist");
 
-            // STEP 1 — clear old blocks (if any)
+            //clear old blocks (if any)
             if (file.getFirstBlock() != -1) {
                 clearBlocks(file.getFirstBlock());
             }
 
-            // STEP 2 — calculate blocks needed
+            //calculate blocks needed
             byte[] data = content.getBytes(StandardCharsets.US_ASCII);
             int totalBytes = data.length;
             int blocksNeeded = (int) Math.ceil((double) totalBytes / BLOCK_SIZE);
@@ -280,7 +293,7 @@ public class FileSystemManager {
             if (blocksNeeded > countFreeBlocks())
                 throw new Exception("ERROR: file too large (not enough blocks)");
 
-            // STEP 3 — allocate new blocks
+            //allocate new blocks
             int firstBlock = -1;
             int prevBlock = -1;
             int offset = 0;
@@ -314,25 +327,27 @@ public class FileSystemManager {
                 blockTable[prevBlock].setNext(-1);
             }
 
-            // STEP 4 — update FEntry metadata in RAM
+            // update FEntry metadata in RAM
             file.setFilesize((short) totalBytes);
             file.setFirstBlock((short) firstBlock);
 
-            // STEP 5 — write FEntry back to disk
+            // write FEntry back to disk
             int idx = findEntryIndex(filename);
             if (idx != -1) {
                 writeFEntryToDisk(idx);
             }
 
-        } finally {
-            globalLock.unlock();
-        }
+       } finally {
+            rwLock.writeLock().unlock();
+            //System.out.println("Content bytes = " + " / Free blocks = " + countFreeBlocks());
+
+       }
         //System.out.println("Content bytes = " + totalBytes + " / Free blocks = " + countFreeBlocks());
     }
 
     //ReadFile
     public String readFile(String filename) throws Exception {
-        globalLock.lock();
+        rwLock.readLock().lock();
         try {
             FEntry file = findEntry(filename);
             if (file == null)
@@ -364,12 +379,12 @@ public class FileSystemManager {
             return new String(buffer, StandardCharsets.US_ASCII);
 
         } finally {
-            globalLock.unlock();
+            rwLock.readLock().unlock();
         }
     }
 
     public void deleteFile(String filename) throws Exception {
-        globalLock.lock();
+        rwLock.writeLock().lock();
         try {
             int idx = findEntryIndex(filename);
             if (idx == -1){
@@ -389,12 +404,12 @@ public class FileSystemManager {
 
             System.out.println("Deleted file: " + filename + " at inode index " + idx);
         } finally {
-            globalLock.unlock();
+            rwLock.writeLock().unlock();
         }
     }
 
     public String listFiles(){
-        globalLock.lock();
+        rwLock.readLock().lock();
         try {
             StringBuilder sb = new StringBuilder();
             for(FEntry e : inodeTable){
@@ -404,7 +419,7 @@ public class FileSystemManager {
             }
             return sb.toString().trim();
         } finally{
-            globalLock.unlock();
+            rwLock.readLock().unlock();
         }
     }
 

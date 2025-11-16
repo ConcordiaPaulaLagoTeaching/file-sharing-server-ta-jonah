@@ -79,8 +79,24 @@ public class ClientHandler implements Runnable {
                                 content = content.substring(1, content.length() - 1);
                             }
 
-                            fsManager.writeFile(filename, content);
-                            writer.println("SUCCESS: File written.");
+                            try {
+                                fsManager.writeFile(filename, content);
+                                writer.println("SUCCESS: File written.");
+                            } catch (Exception ex) {
+                                if (ex.getMessage().equals("BUSY_WRITING")) {
+                                    writer.println("Another user is writing. Retrying in 3 seconds...");
+                                    writer.flush();
+
+                                    Thread.sleep(15000); // wait 15 seconds
+
+                                    // try again automatically
+                                    fsManager.writeFile(filename, content);
+                                    writer.println("SUCCESS: File written after retry.");
+                                } else {
+                                    writer.println("ERROR: " + ex.getMessage());
+                                }
+                            }
+
                             break;
 
                         case "READ":

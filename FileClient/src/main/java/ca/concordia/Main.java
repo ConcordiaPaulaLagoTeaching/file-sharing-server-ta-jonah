@@ -24,7 +24,15 @@ public class Main {
             PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
 
             // Immediately read server's greeting header
-            Thread.sleep(10);
+//            Thread.sleep(10);
+//            while (reader.ready()) {
+//                System.out.println("Response from server: " + reader.readLine());
+//            }
+
+            String first = reader.readLine();
+            System.out.println("Response from server: " + first);
+
+// Then drain all remaining lines that the server already sent
             while (reader.ready()) {
                 System.out.println("Response from server: " + reader.readLine());
             }
@@ -61,6 +69,8 @@ public class Main {
                     System.out.println("(No response received)");
                 }
             }
+
+
 
             clientSocket.close();
             System.out.println("Connection closed.");
